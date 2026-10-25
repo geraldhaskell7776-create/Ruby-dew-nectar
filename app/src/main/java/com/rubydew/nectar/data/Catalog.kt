@@ -18,6 +18,7 @@ object SpeciesCatalog {
             highlight = "Many fly about 500 miles nonstop across the Gulf of Mexico during migration.",
             regions = setOf(EAST, PLAINS, TEXAS),
             accent = 0xFF7A0E19,
+            photos = listOf(R.drawable.ruby_throated_photo),
         ),
         Species(
             id = "black_chinned",
@@ -43,6 +44,7 @@ object SpeciesCatalog {
             highlight = "Males dive from about 100 feet up, making a loud chirp with their tail feathers.",
             regions = setOf(CALIFORNIA, PACIFIC_NW, SOUTHWEST),
             accent = 0xFF880E4F,
+            photos = listOf(R.drawable.annas_photo),
         ),
         Species(
             id = "rufous",
@@ -53,6 +55,7 @@ object SpeciesCatalog {
             highlight = "Has one of the longest migrations of any bird for its body size, up to about 3,900 miles one way.",
             regions = setOf(PACIFIC_NW, ALASKA, ROCKIES, CALIFORNIA, SOUTHWEST),
             accent = 0xFF8D3B0B,
+            photos = listOf(R.drawable.rufous_photo),
         ),
         Species(
             id = "allens",
