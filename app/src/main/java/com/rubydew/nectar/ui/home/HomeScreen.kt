@@ -28,8 +28,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -66,10 +64,12 @@ import com.rubydew.nectar.domain.FunFact
 import com.rubydew.nectar.ui.theme.CardGold
 import com.rubydew.nectar.ui.theme.ExtrudedText
 import com.rubydew.nectar.ui.theme.Garnet
+import com.rubydew.nectar.ui.theme.RaisedElevation
 import com.rubydew.nectar.ui.theme.Leaf
 import com.rubydew.nectar.ui.theme.Ruby
 import com.rubydew.nectar.ui.theme.RubyDark
 import com.rubydew.nectar.ui.theme.Neutral
+import com.rubydew.nectar.ui.theme.RaisedCard
 import com.rubydew.nectar.ui.theme.RubyDewTheme
 
 @Composable
@@ -112,33 +112,12 @@ fun HomeContent(state: HomeUiState, onFactClick: (FunFact) -> Unit) {
 /** Raised ruby plaque across the top: gold rim, bevel shading and a drop shadow. */
 @Composable
 fun HeaderPlaque(regionName: String?) {
-    val shape = RoundedCornerShape(18.dp)
-    Surface(
-        shape = shape,
-        shadowElevation = 12.dp,
-        color = Color.Transparent,
-        border = BorderStroke(
-            3.dp,
-            Brush.verticalGradient(listOf(Color(0xFFFFE9A8), CardGold, Color(0xFF8B6508))),
-        ),
+    RaisedCard(
         modifier = Modifier.fillMaxWidth(),
+        contentColor = Color.White,
+        background = Brush.verticalGradient(listOf(Color(0xFFB3172B), Ruby, Garnet, RubyDark)),
     ) {
-        Box(
-            Modifier
-                .background(Brush.verticalGradient(listOf(Color(0xFFB3172B), Ruby, Garnet, RubyDark)))
-                // Bevel: light along the top edge, dark along the bottom edge
-                .drawWithContent {
-                    drawContent()
-                    val edge = 3.dp.toPx()
-                    drawRect(Color.White.copy(alpha = 0.28f), size = Size(size.width, edge))
-                    drawRect(
-                        Color.Black.copy(alpha = 0.35f),
-                        topLeft = Offset(0f, size.height - edge),
-                        size = Size(size.width, edge),
-                    )
-                }
-                .padding(horizontal = 14.dp, vertical = 14.dp),
-        ) {
+        Box(Modifier.padding(horizontal = 14.dp, vertical = 14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 RegionStatusIndicator(regionName)
                 Spacer(Modifier.weight(1f))
@@ -203,7 +182,7 @@ fun BaseballCard(pick: BirdCardPick, modifier: Modifier = Modifier) {
         modifier = modifier,
         shape = RoundedCornerShape(10.dp),
         color = Color.White,
-        shadowElevation = 8.dp,
+        shadowElevation = RaisedElevation,
     ) {
         Column(
             modifier = Modifier
@@ -280,14 +259,11 @@ fun BaseballCard(pick: BirdCardPick, modifier: Modifier = Modifier) {
 
 @Composable
 fun FunFactBanner(fact: FunFact, onClick: () -> Unit) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-        ),
+    RaisedCard(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("Did you know? · ${fact.title}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)

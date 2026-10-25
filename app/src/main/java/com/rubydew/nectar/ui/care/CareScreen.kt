@@ -16,8 +16,6 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -34,6 +32,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.rubydew.nectar.ui.theme.AlertRed
 import com.rubydew.nectar.ui.theme.Neutral
+import com.rubydew.nectar.ui.theme.RaisedCard
 import com.rubydew.nectar.ui.theme.RubyDewTheme
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -111,12 +110,10 @@ fun CareContent(state: CareUiState, onLogCleaning: () -> Unit, onChangeWater: (D
             mixingSteps.forEachIndexed { i, step -> Text("${i + 1}. $step") }
         }
 
-        Card(
+        RaisedCard(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.errorContainer,
-                contentColor = MaterialTheme.colorScheme.onErrorContainer,
-            ),
+            containerColor = MaterialTheme.colorScheme.errorContainer,
+            contentColor = MaterialTheme.colorScheme.onErrorContainer,
         ) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -173,7 +170,7 @@ private fun NectarCalculator(waterCups: Double, sugarCups: Double, onChangeWater
 
 @Composable
 private fun InfoCard(title: String, content: @Composable () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    RaisedCard(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             content()

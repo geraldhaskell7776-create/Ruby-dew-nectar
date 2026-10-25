@@ -21,7 +21,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -53,6 +52,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.rubydew.nectar.data.SpeciesCatalog
 import com.rubydew.nectar.domain.Region
 import com.rubydew.nectar.domain.Species
+import com.rubydew.nectar.ui.theme.RaisedCard
 import com.rubydew.nectar.ui.theme.RubyDewTheme
 import org.osmdroid.views.MapView
 import java.text.DateFormat
@@ -117,12 +117,13 @@ fun SpeciesContent(
         }
         state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
 
-        map(
-            Modifier
-                .fillMaxWidth()
-                .height(280.dp)
-                .clip(RoundedCornerShape(16.dp))
-        )
+        RaisedCard(modifier = Modifier.fillMaxWidth()) {
+            map(
+                Modifier
+                    .fillMaxWidth()
+                    .height(280.dp)
+            )
+        }
 
         LogSightingRow(options = state.loggableSpecies, onLog = onLogSighting)
 
@@ -187,7 +188,7 @@ private fun LogSightingRow(options: List<Species>, onLog: (Species) -> Unit) {
 
 @Composable
 private fun SpeciesRow(species: Species) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    RaisedCard(modifier = Modifier.fillMaxWidth()) {
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(
                 Modifier
