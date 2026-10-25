@@ -63,13 +63,13 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         filter { it != last }.ifEmpty { this }.randomOrNull()
 
     companion object {
-        /** Two-tone border color pairs, inspired by 1970s baseball cards. */
+        /** Two-tone border color pairs in ruby tones, inspired by 1970s baseball cards. */
         val CARD_COLORS = listOf(
-            CardColors(top = 0xFF5B2A86, bottom = 0xFFE0447F, nameBar = 0xFFB0245E), // purple / pink
-            CardColors(top = 0xFF9B111E, bottom = 0xFFF2A541, nameBar = 0xFFC9771B), // ruby / gold
-            CardColors(top = 0xFF1B5E20, bottom = 0xFF4FC3F7, nameBar = 0xFF0277BD), // green / sky
-            CardColors(top = 0xFF0D47A1, bottom = 0xFFFF7043, nameBar = 0xFFD84315), // blue / orange
-            CardColors(top = 0xFF006064, bottom = 0xFFFFD54F, nameBar = 0xFFE6A100), // teal / yellow
+            CardColors(top = 0xFF6A0B14, bottom = 0xFFC2185B, nameBar = 0xFF8E0E2E), // garnet / rose
+            CardColors(top = 0xFF4A0A12, bottom = 0xFFB71C1C, nameBar = 0xFF7F0000), // deep ruby / crimson
+            CardColors(top = 0xFF5C0A2E, bottom = 0xFFD32F2F, nameBar = 0xFF9A0007), // burgundy / red
+            CardColors(top = 0xFF3B0710, bottom = 0xFFAD1457, nameBar = 0xFF78002E), // black cherry / raspberry
+            CardColors(top = 0xFF7A0E19, bottom = 0xFFB8860B, nameBar = 0xFF8B6508), // wine / antique gold
         )
     }
 }
