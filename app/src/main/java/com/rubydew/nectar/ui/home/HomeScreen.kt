@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -40,8 +41,11 @@ import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.layout.ContentScale
@@ -59,7 +63,12 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.rubydew.nectar.data.FunFacts
 import com.rubydew.nectar.data.SpeciesCatalog
 import com.rubydew.nectar.domain.FunFact
+import com.rubydew.nectar.ui.theme.CardGold
+import com.rubydew.nectar.ui.theme.ExtrudedText
+import com.rubydew.nectar.ui.theme.Garnet
 import com.rubydew.nectar.ui.theme.Leaf
+import com.rubydew.nectar.ui.theme.Ruby
+import com.rubydew.nectar.ui.theme.RubyDark
 import com.rubydew.nectar.ui.theme.Neutral
 import com.rubydew.nectar.ui.theme.RubyDewTheme
 
@@ -84,16 +93,7 @@ fun HomeContent(state: HomeUiState, onFactClick: (FunFact) -> Unit) {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            RegionStatusIndicator(state.regionName)
-            Spacer(Modifier.weight(1f))
-            Text(
-                "Ruby Dew Nectar",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.Bold,
-            )
-        }
+        HeaderPlaque(regionName = state.regionName)
 
         state.card?.let {
             BaseballCard(
@@ -109,23 +109,77 @@ fun HomeContent(state: HomeUiState, onFactClick: (FunFact) -> Unit) {
     }
 }
 
-/** Top-left dot: green when the app knows your region (from your ZIP), gray when it doesn't. */
+/** Raised ruby plaque across the top: gold rim, bevel shading and a drop shadow. */
+@Composable
+fun HeaderPlaque(regionName: String?) {
+    val shape = RoundedCornerShape(18.dp)
+    Surface(
+        shape = shape,
+        shadowElevation = 12.dp,
+        color = Color.Transparent,
+        border = BorderStroke(
+            3.dp,
+            Brush.verticalGradient(listOf(Color(0xFFFFE9A8), CardGold, Color(0xFF8B6508))),
+        ),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Box(
+            Modifier
+                .background(Brush.verticalGradient(listOf(Color(0xFFB3172B), Ruby, Garnet, RubyDark)))
+                // Bevel: light along the top edge, dark along the bottom edge
+                .drawWithContent {
+                    drawContent()
+                    val edge = 3.dp.toPx()
+                    drawRect(Color.White.copy(alpha = 0.28f), size = Size(size.width, edge))
+                    drawRect(
+                        Color.Black.copy(alpha = 0.35f),
+                        topLeft = Offset(0f, size.height - edge),
+                        size = Size(size.width, edge),
+                    )
+                }
+                .padding(horizontal = 14.dp, vertical = 14.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                RegionStatusIndicator(regionName)
+                Spacer(Modifier.weight(1f))
+                ExtrudedText(
+                    "Ruby Dew Nectar",
+                    fontSize = 20.sp,
+                    face = CardGold,
+                    faceHighlight = Color(0xFFFFF4C9),
+                    depth = 3.dp,
+                    letterSpacing = 0.5.sp,
+                )
+            }
+        }
+    }
+}
+
+/** Status pill: gold dot when the app knows your region (from your ZIP), gray when it doesn't. */
 @Composable
 fun RegionStatusIndicator(regionName: String?) {
-    Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surfaceVariant) {
+    Surface(
+        shape = CircleShape,
+        color = Color.Black.copy(alpha = 0.3f),
+        contentColor = Color.White,
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.25f)),
+    ) {
         Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
                 Modifier
                     .size(10.dp)
+                    .shadow(4.dp, CircleShape)
                     .background(if (regionName != null) Leaf else Neutral, CircleShape)
+                    .border(1.dp, Color.White.copy(alpha = 0.6f), CircleShape)
             )
             Spacer(Modifier.width(8.dp))
             Text(
-                regionName ?: "Set ZIP for local birds",
+                regionName ?: "Set ZIP",
                 style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
             )
         }
     }
@@ -162,12 +216,13 @@ fun BaseballCard(pick: BirdCardPick, modifier: Modifier = Modifier) {
                 .padding(horizontal = 12.dp, vertical = 10.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text(
+            ExtrudedText(
                 "RUBY DEW",
-                style = outlined,
                 fontSize = 34.sp,
-                fontWeight = FontWeight.Black,
-                color = CardYellow,
+                face = CardYellow,
+                faceHighlight = Color(0xFFFFFBE0),
+                depthColor = Color(0xFF2B0A0E),
+                depth = 5.dp,
                 letterSpacing = 2.sp,
             )
             Spacer(Modifier.height(6.dp))
