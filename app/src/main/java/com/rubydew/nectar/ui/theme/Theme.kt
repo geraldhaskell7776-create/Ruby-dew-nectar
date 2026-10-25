@@ -13,6 +13,7 @@ val RubyLight = Color(0xFFFFB3B0)
 val AlertRed = Color(0xFFD50000)
 val Leaf = Color(0xFF2E7D32)
 val Neutral = Color(0xFF9E9E9E)
+val CardGold = Color(0xFFE6B84C)
 
 private val LightColors = lightColorScheme(
     primary = Ruby,

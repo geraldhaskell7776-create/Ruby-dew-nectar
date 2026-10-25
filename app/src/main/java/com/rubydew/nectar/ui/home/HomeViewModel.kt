@@ -36,8 +36,11 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     private fun buildState(zip: String, offset: Int): HomeUiState {
         val day = LocalDate.now().dayOfYear
         val region = ZipLookup.regionFor(zip)
-        // Pick from local birds when we know the region (Hawaii has none, so fall back to all).
-        val pool = region?.let(SpeciesCatalog::forRegion)?.takeIf { it.isNotEmpty() } ?: SpeciesCatalog.all
+        // Local birds when we know the region (Hawaii has none, so fall back to all).
+        val local = region?.let(SpeciesCatalog::forRegion)?.takeIf { it.isNotEmpty() } ?: SpeciesCatalog.all
+        // The trading card shows photos, so prefer birds that have them: local ones first, then any.
+        val withPhotos = SpeciesCatalog.all.filter { it.photos.isNotEmpty() }
+        val pool = local.filter { it.photos.isNotEmpty() }.ifEmpty { withPhotos }.ifEmpty { local }
         return HomeUiState(
             regionName = region?.displayName,
             birdOfTheDay = pool[day % pool.size],

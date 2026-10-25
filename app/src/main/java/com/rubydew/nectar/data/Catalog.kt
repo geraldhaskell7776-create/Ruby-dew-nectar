@@ -1,5 +1,6 @@
 package com.rubydew.nectar.data
 
+import com.rubydew.nectar.R
 import com.rubydew.nectar.domain.FunFact
 import com.rubydew.nectar.domain.Region
 import com.rubydew.nectar.domain.Region.*
@@ -27,6 +28,11 @@ object SpeciesCatalog {
             highlight = "Often pumps its tail while hovering at flowers and feeders.",
             regions = setOf(SOUTHWEST, TEXAS, ROCKIES, CALIFORNIA, PACIFIC_NW, PLAINS),
             accent = 0xFF311B92,
+            photos = listOf(
+                R.drawable.black_chinned_photo,
+                R.drawable.black_chinned_watercolor_flight,
+                R.drawable.black_chinned_watercolor_perched,
+            ),
         ),
         Species(
             id = "annas",

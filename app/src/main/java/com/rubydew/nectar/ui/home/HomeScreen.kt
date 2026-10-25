@@ -5,20 +5,29 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -30,8 +39,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
@@ -42,6 +54,7 @@ import com.rubydew.nectar.data.FunFacts
 import com.rubydew.nectar.data.SpeciesCatalog
 import com.rubydew.nectar.domain.FunFact
 import com.rubydew.nectar.domain.Species
+import com.rubydew.nectar.ui.theme.CardGold
 import com.rubydew.nectar.ui.theme.Leaf
 import com.rubydew.nectar.ui.theme.Neutral
 import com.rubydew.nectar.ui.theme.RubyDewTheme
@@ -77,7 +90,7 @@ fun HomeContent(state: HomeUiState, onFactClick: (FunFact) -> Unit, onNextFact: 
             )
         }
 
-        Text("Bird of the day", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Text("Featured bird", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         BirdCard(state.birdOfTheDay)
 
         FunFactBanner(fact = state.funFact, onClick = { onFactClick(state.funFact) }, onNext = onNextFact)
@@ -106,38 +119,104 @@ fun RegionStatusIndicator(regionName: String?) {
     }
 }
 
+/** Trading-card style hero: gold frame, swipeable photo gallery, name banner and stats. */
 @Composable
 fun BirdCard(species: Species) {
     val accent = Color(species.accent)
     Card(
         modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        border = BorderStroke(4.dp, CardGold),
         colors = CardDefaults.cardColors(containerColor = accent, contentColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
     ) {
-        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            // Name banner, like the top of a trading card
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(56.dp)
-                        .background(Color.White.copy(alpha = 0.2f), CircleShape),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        species.commonName.split(" ", "-").take(2).joinToString("") { it.take(1) },
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                    )
-                }
-                Spacer(Modifier.width(16.dp))
-                Column {
+                Column(Modifier.weight(1f)) {
                     Text(species.commonName, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    Text(species.scientificName, fontStyle = FontStyle.Italic)
+                    Text(species.scientificName, fontStyle = FontStyle.Italic, style = MaterialTheme.typography.bodyMedium)
+                }
+                Text(species.size, style = MaterialTheme.typography.labelLarge, color = CardGold)
+            }
+
+            if (species.photos.isNotEmpty()) {
+                PhotoGallery(species)
+            } else {
+                InitialsBadge(species.commonName)
+            }
+
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = Color.Black.copy(alpha = 0.25f),
+                contentColor = Color.White,
+            ) {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(species.description)
+                    Text(
+                        "Range: " + species.regions.joinToString { it.displayName },
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    Text("★ ${species.highlight}", fontWeight = FontWeight.SemiBold)
                 }
             }
-            Text("Size: ${species.size}", style = MaterialTheme.typography.labelLarge)
-            Text(species.description)
-            Text("★ ${species.highlight}", fontWeight = FontWeight.SemiBold)
         }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun PhotoGallery(species: Species) {
+    val pagerState = rememberPagerState(pageCount = { species.photos.size })
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        HorizontalPager(
+            state = pagerState,
+            pageSpacing = 8.dp,
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(16f / 9f)
+                .clip(RoundedCornerShape(12.dp))
+                .border(2.dp, CardGold, RoundedCornerShape(12.dp)),
+        ) { page ->
+            Image(
+                painter = painterResource(species.photos[page]),
+                contentDescription = "${species.commonName}, picture ${page + 1} of ${species.photos.size}",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+        if (species.photos.size > 1) {
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                repeat(species.photos.size) { i ->
+                    Box(
+                        Modifier
+                            .size(if (i == pagerState.currentPage) 10.dp else 8.dp)
+                            .background(
+                                if (i == pagerState.currentPage) CardGold else Color.White.copy(alpha = 0.5f),
+                                CircleShape,
+                            )
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun InitialsBadge(name: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .aspectRatio(16f / 9f)
+            .background(Color.White.copy(alpha = 0.15f), RoundedCornerShape(12.dp)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            name.split(" ", "-").take(2).joinToString("") { it.take(1) },
+            style = MaterialTheme.typography.displayMedium,
+            fontWeight = FontWeight.Bold,
+        )
     }
 }
 
@@ -179,7 +258,7 @@ private fun HomePreview() {
         HomeContent(
             state = HomeUiState(
                 regionName = "Eastern U.S.",
-                birdOfTheDay = SpeciesCatalog.all.first(),
+                birdOfTheDay = SpeciesCatalog.byId("black_chinned")!!,
                 funFact = FunFacts.all[1],
             ),
             onFactClick = {},

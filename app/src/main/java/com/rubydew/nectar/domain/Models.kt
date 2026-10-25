@@ -25,6 +25,8 @@ data class Species(
     val regions: Set<Region>,
     /** Dark card color (ARGB) so white text stays high-contrast. */
     val accent: Long,
+    /** Drawable resource ids for the trading card gallery. Bundled with the app, nothing downloaded or saved. */
+    val photos: List<Int> = emptyList(),
 )
 
 data class FunFact(
