@@ -44,10 +44,8 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         val zip = store.zip.value
         val region = ZipLookup.regionFor(zip)
 
-        // Every (bird, picture) pair. Prefer birds found near the user's ZIP, if any have pictures.
-        val allPicks = SpeciesCatalog.all.flatMap { s -> s.photos.map { s to it } }
-        val localPicks = region?.let { r -> allPicks.filter { r in it.first.regions } }.orEmpty()
-        val pool = localPicks.ifEmpty { allPicks }
+        // Every (bird, picture) pair, from all birds regardless of ZIP code.
+        val pool = SpeciesCatalog.all.flatMap { s -> s.photos.map { s to it } }
 
         val (species, photo) = pool.randomDifferentFrom(previous.card?.let { it.species to it.photo })
             ?: (null to 0)
