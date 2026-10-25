@@ -5,8 +5,6 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -17,14 +15,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -34,27 +32,33 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.rubydew.nectar.data.FunFacts
 import com.rubydew.nectar.data.SpeciesCatalog
 import com.rubydew.nectar.domain.FunFact
-import com.rubydew.nectar.domain.Species
-import com.rubydew.nectar.ui.theme.CardGold
 import com.rubydew.nectar.ui.theme.Leaf
 import com.rubydew.nectar.ui.theme.Neutral
 import com.rubydew.nectar.ui.theme.RubyDewTheme
@@ -63,15 +67,16 @@ import com.rubydew.nectar.ui.theme.RubyDewTheme
 fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    // New random card and fun fact each time Home comes up.
+    LaunchedEffect(Unit) { viewModel.shuffle() }
     HomeContent(
         state = state,
         onFactClick = { openUrl(context, it.url) },
-        onNextFact = viewModel::nextFact,
     )
 }
 
 @Composable
-fun HomeContent(state: HomeUiState, onFactClick: (FunFact) -> Unit, onNextFact: () -> Unit) {
+fun HomeContent(state: HomeUiState, onFactClick: (FunFact) -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -90,10 +95,17 @@ fun HomeContent(state: HomeUiState, onFactClick: (FunFact) -> Unit, onNextFact: 
             )
         }
 
-        Text("Featured bird", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        BirdCard(state.birdOfTheDay)
+        state.card?.let {
+            BaseballCard(
+                pick = it,
+                modifier = Modifier
+                    .widthIn(max = 360.dp)
+                    .fillMaxWidth()
+                    .align(Alignment.CenterHorizontally),
+            )
+        }
 
-        FunFactBanner(fact = state.funFact, onClick = { onFactClick(state.funFact) }, onNext = onNextFact)
+        FunFactBanner(fact = state.funFact, onClick = { onFactClick(state.funFact) })
     }
 }
 
@@ -119,109 +131,100 @@ fun RegionStatusIndicator(regionName: String?) {
     }
 }
 
-/** Trading-card style hero: gold frame, swipeable photo gallery, name banner and stats. */
+private val CardYellow = Color(0xFFFFE135)
+private val CardInk = Color(0xFF1A1A1A)
+
+/** Shift the crop left of center so the whole bird (wing tip to beak) stays in frame. */
+private val PhotoCropAlignment = BiasAlignment(horizontalBias = -0.45f, verticalBias = 0f)
+
+/** A 1970s-style baseball card: two-tone border, team name on top, photo, name bar and a round badge. */
 @Composable
-fun BirdCard(species: Species) {
-    val accent = Color(species.accent)
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        border = BorderStroke(4.dp, CardGold),
-        colors = CardDefaults.cardColors(containerColor = accent, contentColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+fun BaseballCard(pick: BirdCardPick, modifier: Modifier = Modifier) {
+    val top = Color(pick.colors.top)
+    val bottom = Color(pick.colors.bottom)
+    val outlined = TextStyle(shadow = Shadow(color = CardInk, offset = Offset(4f, 4f), blurRadius = 0f))
+
+    // White outer edge, like card stock
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(10.dp),
+        color = Color.White,
+        shadowElevation = 8.dp,
     ) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            // Name banner, like the top of a trading card
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(species.commonName, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    Text(species.scientificName, fontStyle = FontStyle.Italic, style = MaterialTheme.typography.bodyMedium)
-                }
-                Text(species.size, style = MaterialTheme.typography.labelLarge, color = CardGold)
-            }
-
-            if (species.photos.isNotEmpty()) {
-                PhotoGallery(species)
-            } else {
-                InitialsBadge(species.commonName)
-            }
-
-            Surface(
-                shape = RoundedCornerShape(12.dp),
-                color = Color.Black.copy(alpha = 0.25f),
-                contentColor = Color.White,
-            ) {
-                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(species.description)
-                    Text(
-                        "Range: " + species.regions.joinToString { it.displayName },
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                    Text("★ ${species.highlight}", fontWeight = FontWeight.SemiBold)
-                }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun PhotoGallery(species: Species) {
-    val pagerState = rememberPagerState(pageCount = { species.photos.size })
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        HorizontalPager(
-            state = pagerState,
-            pageSpacing = 8.dp,
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(16f / 9f)
-                .clip(RoundedCornerShape(12.dp))
-                .border(2.dp, CardGold, RoundedCornerShape(12.dp)),
-        ) { page ->
-            Image(
-                painter = painterResource(species.photos[page]),
-                contentDescription = "${species.commonName}, picture ${page + 1} of ${species.photos.size}",
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
+                .padding(8.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .drawBehind {
+                    drawRect(top, size = Size(size.width, size.height * 0.55f))
+                    drawRect(bottom, topLeft = Offset(0f, size.height * 0.55f))
+                }
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                "RUBY DEW",
+                style = outlined,
+                fontSize = 34.sp,
+                fontWeight = FontWeight.Black,
+                color = CardYellow,
+                letterSpacing = 2.sp,
+            )
+            Spacer(Modifier.height(6.dp))
+
+            Box {
+                Image(
+                    painter = painterResource(pick.photo),
+                    contentDescription = pick.species.commonName,
+                    contentScale = ContentScale.Crop,
+                    alignment = PhotoCropAlignment,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(0.95f)
+                        .border(5.dp, Color.White, RoundedCornerShape(18.dp))
+                        .padding(5.dp)
+                        .clip(RoundedCornerShape(14.dp)),
+                )
+                // Round badge in the corner, like the position ball
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .offset(x = 6.dp, y = 22.dp)
+                        .size(72.dp)
+                        .background(Color.White, CircleShape)
+                        .border(3.dp, Color(pick.colors.nameBar), CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        "Humming-\nbird",
+                        color = Color(0xFF9B111E),
+                        fontSize = 11.sp,
+                        lineHeight = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontStyle = FontStyle.Italic,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(10.dp))
+            Text(
+                pick.species.commonName.removeSuffix(" Hummingbird").uppercase(),
+                style = outlined.copy(shadow = Shadow(CardInk, Offset(3f, 3f), 0f)),
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Black,
+                color = CardYellow,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(end = 64.dp),
             )
         }
-        if (species.photos.size > 1) {
-            Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                repeat(species.photos.size) { i ->
-                    Box(
-                        Modifier
-                            .size(if (i == pagerState.currentPage) 10.dp else 8.dp)
-                            .background(
-                                if (i == pagerState.currentPage) CardGold else Color.White.copy(alpha = 0.5f),
-                                CircleShape,
-                            )
-                    )
-                }
-            }
-        }
     }
 }
 
 @Composable
-private fun InitialsBadge(name: String) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .aspectRatio(16f / 9f)
-            .background(Color.White.copy(alpha = 0.15f), RoundedCornerShape(12.dp)),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            name.split(" ", "-").take(2).joinToString("") { it.take(1) },
-            style = MaterialTheme.typography.displayMedium,
-            fontWeight = FontWeight.Bold,
-        )
-    }
-}
-
-@Composable
-fun FunFactBanner(fact: FunFact, onClick: () -> Unit, onNext: () -> Unit) {
+fun FunFactBanner(fact: FunFact, onClick: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -234,11 +237,7 @@ fun FunFactBanner(fact: FunFact, onClick: () -> Unit, onNext: () -> Unit) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("Did you know? · ${fact.title}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Text(fact.text)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Tap to read more →", style = MaterialTheme.typography.labelLarge)
-                Spacer(Modifier.weight(1f))
-                TextButton(onClick = onNext) { Text("Next fact") }
-            }
+            Text("Tap to read more →", style = MaterialTheme.typography.labelLarge)
         }
     }
 }
@@ -255,14 +254,14 @@ fun openUrl(context: Context, url: String) {
 @Composable
 private fun HomePreview() {
     RubyDewTheme {
+        val bird = SpeciesCatalog.byId("black_chinned")!!
         HomeContent(
             state = HomeUiState(
-                regionName = "Eastern U.S.",
-                birdOfTheDay = SpeciesCatalog.byId("black_chinned")!!,
+                regionName = "Desert Southwest",
+                card = BirdCardPick(bird, bird.photos.first(), HomeViewModel.CARD_COLORS.first()),
                 funFact = FunFacts.all[1],
             ),
             onFactClick = {},
-            onNextFact = {},
         )
     }
 }
