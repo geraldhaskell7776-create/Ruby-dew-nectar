@@ -10,7 +10,7 @@ Find the Ruby Dew Nectar project on GitHub:
 A hummingbird companion app (Kotlin + Jetpack Compose). Free, no account, all data saved on the phone.
 
 - **Home**: bird of the day, daily fun fact (tap to read more), region indicator
-- **Care**: cleaning reminder button (gray = fresh, red = due), cleaning steps, 4:1 nectar calculator and warnings
+- **Care**: cleaning reminder button (gray = fresh, red = due), cleaning steps, 4:1 nectar calculator, fridge nectar tracker (counts down the 1-week shelf life) and warnings
 - **Species**: ZIP lookup for local birds, free OpenStreetMap sightings map, log and delete sightings
 - **Settings**: ZIP code, cleaning interval, nectar and birdseed shipment tracker
 

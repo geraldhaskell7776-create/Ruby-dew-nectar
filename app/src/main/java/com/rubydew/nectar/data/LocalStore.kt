@@ -26,6 +26,12 @@ class LocalStore(context: Context) {
     )
     val lastCleaned: StateFlow<LocalDate?> = _lastCleaned.asStateFlow()
 
+    private val _fridgeBatch = MutableStateFlow(
+        prefs.getLong(KEY_FRIDGE_BATCH, NONE).takeIf { it != NONE }?.let(LocalDate::ofEpochDay)
+    )
+    /** Day the extra nectar in the fridge was made, or null if there is none. */
+    val fridgeBatch: StateFlow<LocalDate?> = _fridgeBatch.asStateFlow()
+
     private val _cleaningInterval = MutableStateFlow(prefs.getInt(KEY_INTERVAL, DEFAULT_INTERVAL_DAYS))
     val cleaningIntervalDays: StateFlow<Int> = _cleaningInterval.asStateFlow()
 
@@ -43,6 +49,16 @@ class LocalStore(context: Context) {
     fun logCleaning(date: LocalDate = LocalDate.now()) {
         prefs.edit().putLong(KEY_LAST_CLEANED, date.toEpochDay()).apply()
         _lastCleaned.value = date
+    }
+
+    fun logFridgeBatch(date: LocalDate = LocalDate.now()) {
+        prefs.edit().putLong(KEY_FRIDGE_BATCH, date.toEpochDay()).apply()
+        _fridgeBatch.value = date
+    }
+
+    fun clearFridgeBatch() {
+        prefs.edit().remove(KEY_FRIDGE_BATCH).apply()
+        _fridgeBatch.value = null
     }
 
     fun setCleaningInterval(days: Int) {
@@ -123,6 +139,7 @@ class LocalStore(context: Context) {
         private const val NONE = Long.MIN_VALUE
         private const val KEY_ZIP = "zip"
         private const val KEY_LAST_CLEANED = "last_cleaned_epoch_day"
+        private const val KEY_FRIDGE_BATCH = "fridge_batch_epoch_day"
         private const val KEY_INTERVAL = "cleaning_interval_days"
         private const val KEY_SIGHTINGS = "sightings"
         private const val KEY_SHIPMENTS = "shipments"

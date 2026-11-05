@@ -13,6 +13,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -70,11 +71,19 @@ fun CareScreen(viewModel: CareViewModel = viewModel()) {
         state = state,
         onLogCleaning = viewModel::logCleaning,
         onChangeWater = viewModel::changeWater,
+        onLogFridgeBatch = viewModel::logFridgeBatch,
+        onClearFridgeBatch = viewModel::clearFridgeBatch,
     )
 }
 
 @Composable
-fun CareContent(state: CareUiState, onLogCleaning: () -> Unit, onChangeWater: (Double) -> Unit) {
+fun CareContent(
+    state: CareUiState,
+    onLogCleaning: () -> Unit,
+    onChangeWater: (Double) -> Unit,
+    onLogFridgeBatch: () -> Unit = {},
+    onClearFridgeBatch: () -> Unit = {},
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -109,6 +118,8 @@ fun CareContent(state: CareUiState, onLogCleaning: () -> Unit, onChangeWater: (D
             NectarCalculator(waterCups = state.waterCups, sugarCups = state.sugarCups, onChangeWater = onChangeWater)
             mixingSteps.forEachIndexed { i, step -> Text("${i + 1}. $step") }
         }
+
+        FridgeCard(state = state, onLogBatch = onLogFridgeBatch, onClear = onClearFridgeBatch)
 
         RaisedCard(
             modifier = Modifier.fillMaxWidth(),
@@ -149,6 +160,49 @@ fun CleaningStatusButton(needsCleaning: Boolean, onClick: () -> Unit) {
                 fontWeight = FontWeight.Bold,
             )
             Text("Tap after cleaning to log it", style = MaterialTheme.typography.labelMedium)
+        }
+    }
+}
+
+/** Tracks the extra nectar kept in the fridge. Turns red once it's a week old. */
+@Composable
+private fun FridgeCard(state: CareUiState, onLogBatch: () -> Unit, onClear: () -> Unit) {
+    val made = state.fridgeMade
+    val expired = state.fridgeExpired
+    RaisedCard(
+        modifier = Modifier.fillMaxWidth(),
+        containerColor = if (expired) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surface,
+        contentColor = if (expired) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSurface,
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Filled.DateRange, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text("Nectar in the fridge", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            }
+            if (made == null) {
+                Text("No extra nectar stored. Tap below when you put a batch in the fridge.")
+            } else {
+                val left = state.fridgeDaysLeft ?: 0
+                Text(
+                    when {
+                        expired -> "Throw it out and make a fresh batch"
+                        left == 1L -> "1 day left"
+                        else -> "$left days left"
+                    },
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = if (expired) AlertRed else Color.Unspecified,
+                )
+                Text("Made ${made.format(dateFormat)} (${daysAgoText(state.fridgeDaysOld ?: 0)})")
+                Text("Use by ${state.fridgeTossBy?.format(dateFormat)}")
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = onLogBatch) { Text(if (made == null) "I made a batch" else "New batch") }
+                if (made != null) {
+                    OutlinedButton(onClick = onClear) { Text("Used up") }
+                }
+            }
         }
     }
 }
