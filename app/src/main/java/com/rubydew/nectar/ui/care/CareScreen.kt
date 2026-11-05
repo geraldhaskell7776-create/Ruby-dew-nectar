@@ -171,7 +171,7 @@ private fun FridgeCard(state: CareUiState, onLogBatch: () -> Unit, onClear: () -
     val expired = state.fridgeExpired
     RaisedCard(
         modifier = Modifier.fillMaxWidth(),
-        containerColor = if (expired) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surface,
+        containerColor = if (expired) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surfaceContainerLow,
         contentColor = if (expired) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSurface,
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
