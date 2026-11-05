@@ -84,12 +84,29 @@
     img.src = url;
   }
 
-  function load() {
+  // Hostinger runs the PHP lister; a plain static host falls back to manifest.json.
+  var SOURCES = ["manifest.php", "manifest.json"];
+
+  function fetchManifest(i, onDone) {
+    if (i >= SOURCES.length) { onDone(null); return; }
     var x = new XMLHttpRequest();
-    x.open("GET", "manifest.json?t=" + new Date().getTime());
+    x.open("GET", SOURCES[i] + "?t=" + new Date().getTime());
     x.onload = function () {
-      var albums;
-      try { albums = JSON.parse(x.responseText); } catch (e) { return; }
+      var albums = null;
+      try { albums = JSON.parse(x.responseText); } catch (e) { albums = null; }
+      if (albums && albums.length !== undefined) onDone(albums);
+      else fetchManifest(i + 1, onDone);
+    };
+    x.onerror = function () { fetchManifest(i + 1, onDone); };
+    x.send();
+  }
+
+  function load() {
+    fetchManifest(0, function (albums) {
+      if (!albums) {
+        if (currentKey === null) showMessage("Can't load the photos. Check the web address and the connection.");
+        return;
+      }
       var album = pickAlbum(albums);
       var key = album ? album.id + ":" + album.photos.length : "none";
       if (key === currentKey) return;   // nothing changed, keep playing
@@ -104,11 +121,7 @@
       idx = 0;
       msg.style.display = "none";
       next();
-    };
-    x.onerror = function () {
-      if (currentKey === null) showMessage("Can't load the photos. Check the web address and the connection.");
-    };
-    x.send();
+    });
   }
 
   document.body.onclick = next;                       // tap the screen to skip
