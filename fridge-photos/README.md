@@ -12,8 +12,14 @@ Shows photos from your Google Photos on a Samsung Family Hub fridge screen, with
 4. On the fridge, open the **Browser** app and go to the address the app shows (like `http://192.168.1.23:8080`). Bookmark it.
    The fridge switches albums on its own when the dates change.
 
-Family Hub fridges run Samsung's Tizen system and can't install Android apps, so the phone does the work and the fridge just shows the page.
-Use a phone or an old Android tablet that stays at home, on Wi-Fi and plugged in.
+## Which way fits your fridge?
+
+Check on the fridge: **Settings → About Family Hub** (or **Software information**).
+
+- **Tizen** (most Samsung Family Hub fridges): the fridge can't install APKs. Install the APK on a phone or an
+  old Android tablet that stays home, on Wi-Fi and plugged in, and open the address in the fridge's **Browser** app.
+- **Android**: install the APK on the fridge itself and tap **Show on this screen**. The slideshow plays full screen there.
+  The same button works on a tablet mounted on the fridge door.
 
 ## One-time Google setup (about 10 minutes, free)
 

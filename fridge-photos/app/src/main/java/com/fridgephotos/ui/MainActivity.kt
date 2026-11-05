@@ -33,6 +33,7 @@ class MainActivity : ComponentActivity() {
                     onAddPhotos = ::addPhotos,
                     onStartSlideshow = ::askAndStartSlideshow,
                     onStopSlideshow = { SlideshowService.stop(this) },
+                    onShowHere = { startActivity(Intent(this, SlideshowActivity::class.java)) },
                     onAllowBackground = ::askToRunInBackground,
                     needsBackgroundPermission = { !isIgnoringBatteryOptimizations() },
                 )

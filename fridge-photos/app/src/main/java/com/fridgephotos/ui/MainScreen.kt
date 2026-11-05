@@ -56,6 +56,7 @@ fun MainScreen(
     onAddPhotos: (String) -> Unit,
     onStartSlideshow: () -> Unit,
     onStopSlideshow: () -> Unit,
+    onShowHere: () -> Unit,
     onAllowBackground: () -> Unit,
     needsBackgroundPermission: () -> Boolean,
 ) {
@@ -98,6 +99,7 @@ fun MainScreen(
                     askBackground = askBackground,
                     onToggle = { if (running) onStopSlideshow() else onStartSlideshow() },
                     onChangeSeconds = viewModel::changeSeconds,
+                    onShowHere = onShowHere,
                     onAllowBackground = onAllowBackground,
                 )
             }
@@ -167,6 +169,7 @@ private fun FridgeCard(
     askBackground: Boolean,
     onToggle: () -> Unit,
     onChangeSeconds: (Int) -> Unit,
+    onShowHere: () -> Unit,
     onAllowBackground: () -> Unit,
 ) {
     Card(
@@ -205,6 +208,9 @@ private fun FridgeCard(
                 OutlinedButton(onClick = { onChangeSeconds(-5) }) { Text("−") }
                 Spacer(Modifier.width(8.dp))
                 OutlinedButton(onClick = { onChangeSeconds(5) }) { Text("+") }
+            }
+            OutlinedButton(onClick = onShowHere, modifier = Modifier.fillMaxWidth()) {
+                Text("Show on this screen")
             }
             if (askBackground) {
                 TextButton(onClick = onAllowBackground) { Text("Let it keep running in the background") }
