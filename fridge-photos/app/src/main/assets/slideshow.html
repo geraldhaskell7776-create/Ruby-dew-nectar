@@ -1,0 +1,106 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fridge Photos</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; font-family: sans-serif; }
+  .slide {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background-size: contain; background-position: center; background-repeat: no-repeat;
+    opacity: 0; transition: opacity 1.5s ease;
+  }
+  .slide.on { opacity: 1; }
+  #msg {
+    position: absolute; top: 50%; left: 0; width: 100%; padding: 0 24px; box-sizing: border-box;
+    transform: translateY(-50%); text-align: center; color: #ccc; font-size: 28px; display: none;
+  }
+  #cap {
+    position: absolute; right: 18px; bottom: 14px; color: rgba(255, 255, 255, 0.8);
+    font-size: 20px; text-shadow: 0 1px 4px #000;
+  }
+</style>
+</head>
+<body>
+<div id="a" class="slide"></div>
+<div id="b" class="slide"></div>
+<div id="msg"></div>
+<div id="cap"></div>
+<script>
+  // Plain ES5 so it runs in the fridge's built-in browser.
+  var layers = [document.getElementById('a'), document.getElementById('b')];
+  var msg = document.getElementById('msg');
+  var cap = document.getElementById('cap');
+  var front = 0, list = [], idx = 0, albumKey = null, seconds = 15, timer = null;
+
+  function shuffle(a) {
+    for (var i = a.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = a[i]; a[i] = a[j]; a[j] = t;
+    }
+    return a;
+  }
+
+  function showMessage(text) {
+    clearTimeout(timer);
+    layers[0].className = 'slide';
+    layers[1].className = 'slide';
+    cap.textContent = '';
+    msg.textContent = text;
+    msg.style.display = 'block';
+  }
+
+  function next() {
+    clearTimeout(timer);
+    if (!list.length) return;
+    if (idx >= list.length) { shuffle(list); idx = 0; }
+    var photo = list[idx++];
+    var img = new Image();
+    img.onload = function () {
+      var back = layers[1 - front];
+      back.style.backgroundImage = 'url("' + photo.url + '")';
+      back.className = 'slide on';
+      layers[front].className = 'slide';
+      front = 1 - front;
+      cap.textContent = photo.caption || '';
+      timer = setTimeout(next, seconds * 1000);
+    };
+    img.onerror = function () { timer = setTimeout(next, 2000); };
+    img.src = photo.url;
+  }
+
+  // Ask the phone which album is on today. Checked every 5 minutes so the
+  // fridge switches albums on its own when the dates change.
+  function load() {
+    var x = new XMLHttpRequest();
+    x.open('GET', '/api/current?t=' + new Date().getTime());
+    x.onload = function () {
+      var d;
+      try { d = JSON.parse(x.responseText); } catch (e) { return; }
+      seconds = d.seconds || 15;
+      var key = d.albumId + ':' + d.photos.length;
+      if (key === albumKey) return;
+      albumKey = key;
+      list = shuffle(d.photos.slice());
+      idx = 0;
+      if (!list.length) {
+        showMessage(d.message || ('"' + d.albumName + '" has no photos yet.'));
+      } else {
+        msg.style.display = 'none';
+        next();
+      }
+    };
+    x.onerror = function () {
+      if (albumKey === null) showMessage("Can't reach the phone. Is Fridge Photos running on the same Wi-Fi?");
+    };
+    x.send();
+  }
+
+  document.body.onclick = next; // tap the fridge screen to skip
+  load();
+  setInterval(load, 5 * 60 * 1000);
+  setTimeout(function () { location.reload(); }, 6 * 60 * 60 * 1000);
+</script>
+</body>
+</html>
