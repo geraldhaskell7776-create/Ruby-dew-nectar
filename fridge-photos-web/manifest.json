@@ -1,0 +1,18 @@
+[
+  {
+    "id": "new-years",
+    "name": "New Years",
+    "folder": "new-years",
+    "start": "12-16",
+    "end": "01-02",
+    "photos": []
+  },
+  {
+    "id": "everyday",
+    "name": "Everyday",
+    "folder": "everyday",
+    "start": null,
+    "end": null,
+    "photos": []
+  }
+]

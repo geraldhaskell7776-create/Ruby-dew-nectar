@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fridge Photos</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; font-family: sans-serif; }
+  .slide {
+    position: absolute; inset: 0;
+    background-size: contain; background-position: center; background-repeat: no-repeat;
+    opacity: 0; transition: opacity 1.5s ease;
+  }
+  .slide.on { opacity: 1; }
+  #msg {
+    position: absolute; top: 50%; left: 0; width: 100%; padding: 0 24px; box-sizing: border-box;
+    transform: translateY(-50%); text-align: center; color: #ccc; font-size: 28px; line-height: 1.4; display: none;
+  }
+  #cap {
+    position: absolute; right: 18px; bottom: 14px; color: rgba(255,255,255,.85);
+    font-size: 22px; text-shadow: 0 1px 4px #000;
+  }
+</style>
+</head>
+<body>
+<div id="a" class="slide"></div>
+<div id="b" class="slide"></div>
+<div id="msg"></div>
+<div id="cap"></div>
+<script src="slideshow.js"></script>
+</body>
+</html>
