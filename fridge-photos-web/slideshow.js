@@ -8,7 +8,39 @@
   var layers = [document.getElementById("a"), document.getElementById("b")];
   var msg = document.getElementById("msg");
   var cap = document.getElementById("cap");
-  var front = 0, list = [], idx = 0, currentKey = null, timer = null;
+  var hint = document.getElementById("hint");
+  var front = 0, list = [], idx = 0, currentKey = null, timer = null, hintTimer = null;
+
+  // --- Full screen (hides the fridge browser's address bar) ---
+  // A touch toggles it: full screen hides the bar, touch again brings it back.
+  function fsElement() {
+    return document.fullscreenElement || document.webkitFullscreenElement ||
+      document.mozFullScreenElement || document.msFullscreenElement || null;
+  }
+  function quiet(p) { if (p && p.then) { try { p.then(null, function () {}); } catch (e) {} } }
+  function enterFullscreen() {
+    var el = document.documentElement;
+    if (!el) return;
+    var fn = el.requestFullscreen || el.webkitRequestFullscreen || el.webkitRequestFullScreen ||
+      el.mozRequestFullScreen || el.msRequestFullscreen;
+    if (fn) { try { quiet(fn.call(el)); } catch (e) {} }
+  }
+  function exitFullscreen() {
+    var fn = document.exitFullscreen || document.webkitExitFullscreen ||
+      document.mozCancelFullScreen || document.msExitFullscreen;
+    if (fn) { try { quiet(fn.call(document)); } catch (e) {} }
+  }
+  function showHint(text) {
+    if (!hint) return;
+    hint.textContent = text;
+    hint.className = "show";
+    clearTimeout(hintTimer);
+    hintTimer = setTimeout(function () { hint.className = ""; }, 3500);
+  }
+  function onTouch() {
+    if (fsElement()) { exitFullscreen(); showHint("Address bar shown — touch again for full screen"); }
+    else { enterFullscreen(); showHint("Full screen — touch to show the address bar"); }
+  }
 
   function shuffle(a) {
     for (var i = a.length - 1; i > 0; i--) {
@@ -124,7 +156,9 @@
     });
   }
 
-  document.body.onclick = next;                       // tap the screen to skip
+  document.body.onclick = onTouch;                    // touch toggles full screen
+  enterFullscreen();                                  // try to open full screen right away
+  showHint("Touch for full screen");                  // in case the browser needs a touch first
   load();
   setInterval(load, RECHECK_MINUTES * 60 * 1000);     // switch albums by date on its own
   setTimeout(function () { location.reload(); }, 12 * 3600 * 1000);

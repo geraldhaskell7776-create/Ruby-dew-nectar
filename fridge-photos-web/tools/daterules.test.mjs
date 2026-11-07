@@ -6,7 +6,7 @@ const code = readFileSync(new URL("../slideshow.js", import.meta.url), "utf8");
 const stub = () => ({ className: "", style: {}, textContent: "" });
 const win = {};
 new Function("document", "window", "setTimeout", "setInterval", "Image", "XMLHttpRequest", code)(
-  { getElementById: stub, body: {} }, win, () => 0, () => 0, function () {},
+  { getElementById: stub, body: {}, documentElement: {} }, win, () => 0, () => 0, function () {},
   function () { this.open = () => {}; this.send = () => {}; }
 );
 const { inRange, spanDays, pickAlbum, dayNum } = win.FridgePhotos;

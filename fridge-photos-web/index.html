@@ -2,7 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#000000">
 <title>Fridge Photos</title>
 <style>
   html, body { margin: 0; height: 100%; background: #000; overflow: hidden; font-family: sans-serif; }
@@ -20,6 +24,13 @@
     position: absolute; right: 18px; bottom: 14px; color: rgba(255,255,255,.85);
     font-size: 22px; text-shadow: 0 1px 4px #000;
   }
+  #hint {
+    position: absolute; left: 50%; bottom: 40px; transform: translateX(-50%);
+    background: rgba(0,0,0,.6); color: #fff; font-size: 22px;
+    padding: 12px 22px; border-radius: 999px; opacity: 0; transition: opacity .4s ease;
+    pointer-events: none; white-space: nowrap;
+  }
+  #hint.show { opacity: 1; }
 </style>
 </head>
 <body>
@@ -27,6 +38,7 @@
 <div id="b" class="slide"></div>
 <div id="msg"></div>
 <div id="cap"></div>
+<div id="hint"></div>
 <script src="slideshow.js"></script>
 </body>
 </html>
