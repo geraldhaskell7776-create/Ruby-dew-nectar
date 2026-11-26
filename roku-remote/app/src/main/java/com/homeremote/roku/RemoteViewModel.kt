@@ -13,7 +13,12 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
+import org.json.JSONArray
+import org.json.JSONObject
 import java.net.URLEncoder
+
+/** A show the user saved for a channel. */
+data class FavoriteShow(val appId: String, val appName: String, val title: String)
 
 class RemoteViewModel(app: Application) : AndroidViewModel(app) {
     private val prefs = app.getSharedPreferences("roku", Context.MODE_PRIVATE)
@@ -35,6 +40,10 @@ class RemoteViewModel(app: Application) : AndroidViewModel(app) {
         private set
     val icons = mutableStateMapOf<String, ImageBitmap>()
     private var loadingApps = false
+
+    /** Shows the user saved, newest first. Kept on the phone only. */
+    var favorites by mutableStateOf(loadFavorites())
+        private set
 
     // Commands go out one at a time, in order, so fast typing doesn't scramble letters.
     private val commands = Channel<String>(Channel.UNLIMITED)
@@ -74,6 +83,50 @@ class RemoteViewModel(app: Application) : AndroidViewModel(app) {
     fun launch(app: RokuApp) {
         commands.trySend("/launch/${app.id}")
     }
+
+    /**
+     * Asks the Roku to find a show in one channel and open it there
+     * (ECP "search/browse"). If the channel can't do that, the Roku shows
+     * its own search results for the show instead.
+     */
+    fun playShow(show: FavoriteShow) {
+        commands.trySend(
+            "/search/browse?keyword=${encode(show.title)}&provider-id=${encode(show.appId)}&launch=true",
+        )
+    }
+
+    fun addFavorite(app: RokuApp, title: String) {
+        val name = title.trim()
+        if (name.isEmpty()) return
+        if (favorites.any { it.appId == app.id && it.title.equals(name, ignoreCase = true) }) return
+        favorites = listOf(FavoriteShow(app.id, app.name, name)) + favorites
+        saveFavorites()
+    }
+
+    fun removeFavorite(show: FavoriteShow) {
+        favorites = favorites - show
+        saveFavorites()
+    }
+
+    private fun loadFavorites(): List<FavoriteShow> = try {
+        val array = JSONArray(prefs.getString("favorites", "[]"))
+        (0 until array.length()).map { i ->
+            val o = array.getJSONObject(i)
+            FavoriteShow(o.getString("appId"), o.getString("appName"), o.getString("title"))
+        }
+    } catch (e: Exception) {
+        emptyList()
+    }
+
+    private fun saveFavorites() {
+        val array = JSONArray()
+        for (f in favorites) {
+            array.put(JSONObject().put("appId", f.appId).put("appName", f.appName).put("title", f.title))
+        }
+        prefs.edit().putString("favorites", array.toString()).apply()
+    }
+
+    private fun encode(text: String) = URLEncoder.encode(text, "UTF-8").replace("+", "%20")
 
     fun scan() {
         if (scanning) return

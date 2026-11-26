@@ -1,6 +1,7 @@
 package com.homeremote.roku
 
 import android.view.HapticFeedbackConstants
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -21,7 +22,10 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
@@ -37,7 +41,9 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.VolumeDown
 import androidx.compose.material.icons.automirrored.filled.VolumeOff
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Apps
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.FastRewind
 import androidx.compose.material.icons.filled.Home
@@ -56,6 +62,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -109,6 +116,10 @@ fun RemoteApp(vm: RemoteViewModel) {
         return
     }
     var tab by rememberSaveable { mutableStateOf(0) }
+    // The channel whose page is open on the Channels tab, if any.
+    var openChannelId by rememberSaveable { mutableStateOf<String?>(null) }
+    val openChannel = vm.apps.firstOrNull { it.id == openChannelId }
+    BackHandler(enabled = tab == 1 && openChannel != null) { openChannelId = null }
     Scaffold(
         bottomBar = {
             NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
@@ -137,7 +148,11 @@ fun RemoteApp(vm: RemoteViewModel) {
             vm.problem?.let { ProblemBanner(it) }
             when (tab) {
                 0 -> RemoteScreen(vm)
-                else -> ChannelsScreen(vm, onLaunched = { tab = 0 })
+                else -> if (openChannel != null) {
+                    ChannelPage(vm, openChannel, onBack = { openChannelId = null }, onLaunched = { tab = 0 })
+                } else {
+                    ChannelsScreen(vm, onOpen = { openChannelId = it.id }, onLaunched = { tab = 0 })
+                }
             }
         }
     }
@@ -370,7 +385,7 @@ private fun RemoteKey(
 // ---------------------------------------------------------------- Channels
 
 @Composable
-private fun ChannelsScreen(vm: RemoteViewModel, onLaunched: () -> Unit) {
+private fun ChannelsScreen(vm: RemoteViewModel, onOpen: (RokuApp) -> Unit, onLaunched: () -> Unit) {
     val view = LocalView.current
     if (vm.apps.isEmpty()) {
         Column(
@@ -393,14 +408,35 @@ private fun ChannelsScreen(vm: RemoteViewModel, onLaunched: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(10.dp),
         modifier = Modifier.fillMaxSize(),
     ) {
+        if (vm.favorites.isNotEmpty()) {
+            item(span = { GridItemSpan(maxLineSpan) }, key = "fav-title") {
+                Text("Favorite shows", fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
+            }
+            items(vm.favorites, span = { GridItemSpan(maxLineSpan) }, key = { "fav-${it.appId}-${it.title}" }) { show ->
+                ShowRow(
+                    show,
+                    subtitle = show.appName,
+                    onPlay = {
+                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                        vm.playShow(show)
+                        onLaunched()
+                    },
+                    onRemove = { vm.removeFavorite(show) },
+                )
+            }
+            item(span = { GridItemSpan(maxLineSpan) }, key = "ch-title") {
+                Text(
+                    "Channels",
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 18.sp,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            }
+        }
         items(vm.apps, key = { it.id }) { app ->
             Card(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                modifier = Modifier.clickable {
-                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                    vm.launch(app)
-                    onLaunched()
-                },
+                modifier = Modifier.clickable { onOpen(app) },
             ) {
                 val icon = vm.icons[app.id]
                 if (icon != null) {
@@ -424,6 +460,141 @@ private fun ChannelsScreen(vm: RemoteViewModel, onLaunched: () -> Unit) {
                     }
                 }
             }
+        }
+    }
+}
+
+/** One channel: open it, or save shows for it and start one with a tap. */
+@Composable
+private fun ChannelPage(vm: RemoteViewModel, app: RokuApp, onBack: () -> Unit, onLaunched: () -> Unit) {
+    val view = LocalView.current
+    var newShow by rememberSaveable(app.id) { mutableStateOf("") }
+    val shows = vm.favorites.filter { it.appId == app.id }
+    val add = {
+        vm.addFavorite(app, newShow)
+        newShow = ""
+    }
+    LazyColumn(
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = Modifier.fillMaxSize(),
+    ) {
+        item {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back to channels") }
+                val icon = vm.icons[app.id]
+                if (icon != null) {
+                    Image(
+                        bitmap = icon,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .width(64.dp)
+                            .aspectRatio(4f / 3f)
+                            .clip(RoundedCornerShape(6.dp)),
+                    )
+                    Spacer(Modifier.width(12.dp))
+                }
+                Text(
+                    app.name,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        item {
+            Button(
+                onClick = {
+                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                    vm.launch(app)
+                    onLaunched()
+                },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Icon(Icons.Filled.PlayArrow, null)
+                Spacer(Modifier.width(8.dp))
+                Text("Open ${app.name} on the TV")
+            }
+        }
+        item {
+            Text(
+                "Your shows on ${app.name}",
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+        }
+        item {
+            OutlinedTextField(
+                value = newShow,
+                onValueChange = { newShow = it },
+                label = { Text("Add a show or movie") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { add() }),
+                trailingIcon = {
+                    IconButton(onClick = add, enabled = newShow.isNotBlank()) {
+                        Icon(Icons.Filled.Add, "Save show")
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        if (shows.isEmpty()) {
+            item {
+                Text(
+                    "No shows saved yet. Type a name above and tap + to save it here and in Favorite shows.",
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        items(shows, key = { it.title }) { show ->
+            ShowRow(
+                show,
+                subtitle = null,
+                onPlay = {
+                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                    vm.playShow(show)
+                    onLaunched()
+                },
+                onRemove = { vm.removeFavorite(show) },
+            )
+        }
+        item {
+            Text(
+                "Tapping a show asks the Roku to find it in ${app.name}. If the channel doesn't " +
+                    "support that, the Roku opens its search results for the show instead.",
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun ShowRow(show: FavoriteShow, subtitle: String?, onPlay: () -> Unit, onRemove: () -> Unit) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onPlay),
+    ) {
+        Row(
+            Modifier.padding(start = 14.dp, top = 6.dp, bottom = 6.dp, end = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.Filled.Star, null, tint = MaterialTheme.colorScheme.primary)
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(show.title, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                if (subtitle != null) {
+                    Text(subtitle, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            IconButton(onClick = onRemove) { Icon(Icons.Filled.Delete, "Remove ${show.title}") }
         }
     }
 }
