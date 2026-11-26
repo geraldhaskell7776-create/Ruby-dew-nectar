@@ -20,3 +20,8 @@ https://github.com/geraldhaskell7776-create/Ruby-dew-nectar/releases/latest/down
 Open the file on your phone and allow "install unknown apps" when asked.
 
 **Build locally** (needs the Android SDK): `./gradlew assembleDebug`
+
+## Roku Remote (separate app)
+
+The `roku-remote/` folder is a separate Android app that uses your phone as a Roku remote.
+Open that folder in Android Studio to build it. See [roku-remote/README.md](roku-remote/README.md).
