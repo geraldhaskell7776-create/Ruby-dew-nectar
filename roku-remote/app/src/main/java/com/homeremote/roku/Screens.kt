@@ -61,7 +61,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
@@ -153,6 +152,7 @@ fun RemoteApp(vm: RemoteViewModel) {
             DeviceBar(device, onChange = vm::changeRoku)
             ChristmasLights()
             vm.problem?.let { ProblemBanner(it) }
+            vm.notice?.let { NoticeBanner(it) }
             when (tab) {
                 0 -> RemoteScreen(vm)
                 else -> if (openChannel != null) {
@@ -200,6 +200,20 @@ private fun ProblemBanner(text: String) {
             .padding(horizontal = 16.dp, vertical = 4.dp)
             .clip(RoundedCornerShape(10.dp))
             .background(MaterialTheme.colorScheme.error.copy(alpha = 0.12f))
+            .padding(12.dp),
+    )
+}
+
+@Composable
+private fun NoticeBanner(text: String) {
+    Text(
+        text,
+        fontSize = 14.sp,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(ChristmasGreen.copy(alpha = 0.3f))
             .padding(12.dp),
     )
 }
@@ -477,10 +491,9 @@ private fun ChannelsScreen(vm: RemoteViewModel, onOpen: (RokuApp) -> Unit, onLau
 private fun ChannelPage(vm: RemoteViewModel, app: RokuApp, onBack: () -> Unit, onLaunched: () -> Unit) {
     val view = LocalView.current
     var newShow by rememberSaveable(app.id) { mutableStateOf("") }
-    var newType by rememberSaveable(app.id) { mutableStateOf(TV_SHOW) }
     val shows = vm.favorites.filter { it.appId == app.id }
     val add = {
-        vm.addFavorite(app, newShow, newType)
+        vm.addFavorite(app, newShow)
         newShow = ""
     }
     LazyColumn(
@@ -550,12 +563,6 @@ private fun ChannelPage(vm: RemoteViewModel, app: RokuApp, onBack: () -> Unit, o
                 modifier = Modifier.fillMaxWidth(),
             )
         }
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(selected = newType == TV_SHOW, onClick = { newType = TV_SHOW }, label = { Text("TV show") })
-                FilterChip(selected = newType == MOVIE, onClick = { newType = MOVIE }, label = { Text("Movie") })
-            }
-        }
         if (shows.isEmpty()) {
             item {
                 Text(
@@ -579,9 +586,8 @@ private fun ChannelPage(vm: RemoteViewModel, app: RokuApp, onBack: () -> Unit, o
         }
         item {
             Text(
-                "Tapping a show asks the Roku to start it in ${app.name}. Spell the name exactly as " +
-                    "the channel does and pick TV show or Movie correctly. If the Roku still can't " +
-                    "match it, it opens its search results so you can pick it with the remote.",
+                "Tapping a show opens the Roku's search and types the name for you. Then pick " +
+                    "it from the results with the remote; the Roku shows which channels have it.",
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 8.dp),
@@ -606,12 +612,9 @@ private fun ShowRow(show: FavoriteShow, subtitle: String?, onPlay: () -> Unit, o
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(show.title, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                val kind = if (show.type == MOVIE) "Movie" else "TV show"
-                Text(
-                    if (subtitle != null) "$subtitle · $kind" else kind,
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                if (subtitle != null) {
+                    Text(subtitle, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
             IconButton(onClick = onRemove) { Icon(Icons.Filled.Delete, "Remove ${show.title}") }
         }

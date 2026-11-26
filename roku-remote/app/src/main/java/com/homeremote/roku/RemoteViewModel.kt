@@ -11,18 +11,16 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.URLEncoder
 
 /** A show the user saved for a channel. */
-data class FavoriteShow(val appId: String, val appName: String, val title: String, val type: String = TV_SHOW)
-
-/** Roku's names for the two kinds of content its search can start. */
-const val TV_SHOW = "tv-show"
-const val MOVIE = "movie"
+data class FavoriteShow(val appId: String, val appName: String, val title: String)
 
 class RemoteViewModel(app: Application) : AndroidViewModel(app) {
     private val prefs = app.getSharedPreferences("roku", Context.MODE_PRIVATE)
@@ -40,6 +38,10 @@ class RemoteViewModel(app: Application) : AndroidViewModel(app) {
     /** A problem to show the user, or null when everything is working. */
     var problem by mutableStateOf<String?>(null)
         private set
+    /** A short friendly note, e.g. what the TV is doing now; clears itself. */
+    var notice by mutableStateOf<String?>(null)
+        private set
+    private var noticeJob: Job? = null
     var apps by mutableStateOf<List<RokuApp>>(emptyList())
         private set
     val icons = mutableStateMapOf<String, ImageBitmap>()
@@ -61,6 +63,10 @@ class RemoteViewModel(app: Application) : AndroidViewModel(app) {
         }
         viewModelScope.launch {
             for (path in commands) {
+                if (path.startsWith(WAIT)) {
+                    delay(path.removePrefix(WAIT).toLong())
+                    continue
+                }
                 val c = client ?: continue
                 try {
                     c.post(path)
@@ -89,24 +95,34 @@ class RemoteViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * Asks the Roku to find a show in one channel and start it there
-     * (ECP "search/browse"). The Roku only starts it by itself when it gets an
-     * exact title, the type (TV show or movie) and the channel; otherwise it
-     * shows its own search results for the show instead.
+     * Opens the Roku's own search and types the show's name into it, so the
+     * results appear on the TV and the user picks one with the remote.
+     * (Roku's "search/browse" command opened search with an empty box on the
+     * user's Roku, so we press the Search key and type instead, which only
+     * uses keys that work everywhere.)
      */
     fun playShow(show: FavoriteShow) {
-        val title = encode(show.title)
-        commands.trySend(
-            "/search/browse?keyword=$title&title=$title&type=${show.type}" +
-                "&provider-id=${encode(show.appId)}&launch=true",
-        )
+        commands.trySend("/keypress/Search")
+        commands.trySend(WAIT + 2500) // give the search screen time to open
+        repeat(30) { commands.trySend("/keypress/Backspace") } // clear an old search
+        show.title.forEach(::type)
+        showNotice("Searching for \"${show.title}\" on the TV. Pick it from the results with the remote.")
     }
 
-    fun addFavorite(app: RokuApp, title: String, type: String) {
+    private fun showNotice(text: String) {
+        notice = text
+        noticeJob?.cancel()
+        noticeJob = viewModelScope.launch {
+            delay(10_000)
+            notice = null
+        }
+    }
+
+    fun addFavorite(app: RokuApp, title: String) {
         val name = title.trim()
         if (name.isEmpty()) return
         if (favorites.any { it.appId == app.id && it.title.equals(name, ignoreCase = true) }) return
-        favorites = listOf(FavoriteShow(app.id, app.name, name, type)) + favorites
+        favorites = listOf(FavoriteShow(app.id, app.name, name)) + favorites
         saveFavorites()
     }
 
@@ -119,7 +135,7 @@ class RemoteViewModel(app: Application) : AndroidViewModel(app) {
         val array = JSONArray(prefs.getString("favorites", "[]"))
         (0 until array.length()).map { i ->
             val o = array.getJSONObject(i)
-            FavoriteShow(o.getString("appId"), o.getString("appName"), o.getString("title"), o.optString("type", TV_SHOW))
+            FavoriteShow(o.getString("appId"), o.getString("appName"), o.getString("title"))
         }
     } catch (e: Exception) {
         emptyList()
@@ -128,7 +144,7 @@ class RemoteViewModel(app: Application) : AndroidViewModel(app) {
     private fun saveFavorites() {
         val array = JSONArray()
         for (f in favorites) {
-            array.put(JSONObject().put("appId", f.appId).put("appName", f.appName).put("title", f.title).put("type", f.type))
+            array.put(JSONObject().put("appId", f.appId).put("appName", f.appName).put("title", f.title))
         }
         prefs.edit().putString("favorites", array.toString()).apply()
     }
@@ -213,6 +229,8 @@ class RemoteViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private companion object {
+        /** Not sent to the Roku: tells the command queue to pause this many milliseconds. */
+        const val WAIT = "wait:"
         const val TURNED_OFF =
             "The Roku is blocking phone control. On the Roku go to Settings > System > " +
                 "Advanced system settings > Control by mobile apps and turn it on."
