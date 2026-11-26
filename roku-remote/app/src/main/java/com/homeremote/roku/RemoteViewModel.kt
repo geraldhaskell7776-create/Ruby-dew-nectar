@@ -96,19 +96,22 @@ class RemoteViewModel(app: Application) : AndroidViewModel(app) {
 
     /**
      * Opens the Roku's own search and types the show's name into it, so the
-     * results appear on the TV and the user picks one with the remote. Enter at the
-     * end tells the Roku to run the search (typing alone doesn't on every Roku).
+     * results appear on the TV and the user picks one with the remote.
+     * The main search updates its results as letters arrive, so no Enter is needed
+     * (Enter or OK there can act on whatever is behind it, e.g. pause a video).
      * (Roku's "search/browse" command opened search with an empty box on the
      * user's Roku, so we press the Search key and type instead, which only
      * uses keys that work everywhere.)
      */
     fun playShow(show: FavoriteShow) {
+        // Go to the Home screen first: pressing Search while something is playing
+        // opens a small in-channel search instead of the Roku's main search.
+        commands.trySend("/keypress/Home")
+        commands.trySend(WAIT + 2500)
         commands.trySend("/keypress/Search")
-        commands.trySend(WAIT + 2500) // give the search screen time to open
+        commands.trySend(WAIT + 3000) // give the search screen time to open
         repeat(30) { commands.trySend("/keypress/Backspace") } // clear an old search
         show.title.forEach(::type)
-        commands.trySend(WAIT + 800)
-        commands.trySend("/keypress/Enter") // run the search, like the keyboard's search key
         showNotice("Searching for \"${show.title}\" on the TV. Pick it from the results with the remote.")
     }
 
