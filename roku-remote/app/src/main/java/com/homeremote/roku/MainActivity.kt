@@ -41,16 +41,17 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-val RokuPurple = Color(0xFF8E5CF7)
+/** The accent colour for the main buttons: Christmas red. */
+val RokuPurple = ChristmasRed
 
 private val RemoteColors = darkColorScheme(
     primary = RokuPurple,
     onPrimary = Color.White,
-    secondary = Color(0xFFB79CFF),
-    background = Color(0xFF121016),
-    surface = Color(0xFF1B1822),
-    surfaceVariant = Color(0xFF2A2533),
-    onSurface = Color(0xFFECE8F2),
-    onSurfaceVariant = Color(0xFFB9B2C6),
+    secondary = ChristmasGreen,
+    background = Color(0xFF0A1630),
+    surface = Color(0xFF102036),
+    surfaceVariant = Color(0xE61A2D47),
+    onSurface = Color(0xFFF1F4F8),
+    onSurfaceVariant = Color(0xFFC3CEDC),
     error = Color(0xFFFF6B6B),
 )

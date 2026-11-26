@@ -61,6 +61,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
@@ -104,15 +105,17 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-private val ButtonColor = Color(0xFF2E2938)
-private val PadColor = Color(0xFF231F2B)
+private val ButtonColor = Color(0xD9203047)
+private val PadColor = Color(0xB3152238)
 private val PowerColor = Color(0xFFD9434B)
 
 @Composable
 fun RemoteApp(vm: RemoteViewModel) {
     val device = vm.device
     if (device == null) {
-        Scaffold { padding -> SetupScreen(vm, Modifier.padding(padding)) }
+        ChristmasBackground {
+            Scaffold(containerColor = Color.Transparent, contentColor = MaterialTheme.colorScheme.onSurface) { padding -> SetupScreen(vm, Modifier.padding(padding)) }
+        }
         return
     }
     var tab by rememberSaveable { mutableStateOf(0) }
@@ -120,9 +123,12 @@ fun RemoteApp(vm: RemoteViewModel) {
     var openChannelId by rememberSaveable { mutableStateOf<String?>(null) }
     val openChannel = vm.apps.firstOrNull { it.id == openChannelId }
     BackHandler(enabled = tab == 1 && openChannel != null) { openChannelId = null }
+    ChristmasBackground {
     Scaffold(
+        containerColor = Color.Transparent,
+        contentColor = MaterialTheme.colorScheme.onSurface,
         bottomBar = {
-            NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
+            NavigationBar(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)) {
                 NavigationBarItem(
                     selected = tab == 0,
                     onClick = { tab = 0 },
@@ -145,6 +151,7 @@ fun RemoteApp(vm: RemoteViewModel) {
                 .imePadding(),
         ) {
             DeviceBar(device, onChange = vm::changeRoku)
+            ChristmasLights()
             vm.problem?.let { ProblemBanner(it) }
             when (tab) {
                 0 -> RemoteScreen(vm)
@@ -155,6 +162,7 @@ fun RemoteApp(vm: RemoteViewModel) {
                 }
             }
         }
+    }
     }
 }
 
@@ -231,7 +239,7 @@ private fun RemoteScreen(vm: RemoteViewModel) {
 
         ButtonRow {
             IconKey(Icons.Filled.FastRewind, "Rewind") { vm.press("Rev") }
-            IconKey(Icons.Filled.PlayArrow, "Play or pause", color = RokuPurple) { vm.press("Play") }
+            IconKey(Icons.Filled.PlayArrow, "Play or pause", color = ChristmasGreen) { vm.press("Play") }
             IconKey(Icons.Filled.FastForward, "Fast forward") { vm.press("Fwd") }
         }
 
@@ -469,9 +477,10 @@ private fun ChannelsScreen(vm: RemoteViewModel, onOpen: (RokuApp) -> Unit, onLau
 private fun ChannelPage(vm: RemoteViewModel, app: RokuApp, onBack: () -> Unit, onLaunched: () -> Unit) {
     val view = LocalView.current
     var newShow by rememberSaveable(app.id) { mutableStateOf("") }
+    var newType by rememberSaveable(app.id) { mutableStateOf(TV_SHOW) }
     val shows = vm.favorites.filter { it.appId == app.id }
     val add = {
-        vm.addFavorite(app, newShow)
+        vm.addFavorite(app, newShow, newType)
         newShow = ""
     }
     LazyColumn(
@@ -541,6 +550,12 @@ private fun ChannelPage(vm: RemoteViewModel, app: RokuApp, onBack: () -> Unit, o
                 modifier = Modifier.fillMaxWidth(),
             )
         }
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(selected = newType == TV_SHOW, onClick = { newType = TV_SHOW }, label = { Text("TV show") })
+                FilterChip(selected = newType == MOVIE, onClick = { newType = MOVIE }, label = { Text("Movie") })
+            }
+        }
         if (shows.isEmpty()) {
             item {
                 Text(
@@ -564,8 +579,9 @@ private fun ChannelPage(vm: RemoteViewModel, app: RokuApp, onBack: () -> Unit, o
         }
         item {
             Text(
-                "Tapping a show asks the Roku to find it in ${app.name}. If the channel doesn't " +
-                    "support that, the Roku opens its search results for the show instead.",
+                "Tapping a show asks the Roku to start it in ${app.name}. Spell the name exactly as " +
+                    "the channel does and pick TV show or Movie correctly. If the Roku still can't " +
+                    "match it, it opens its search results so you can pick it with the remote.",
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 8.dp),
@@ -590,9 +606,12 @@ private fun ShowRow(show: FavoriteShow, subtitle: String?, onPlay: () -> Unit, o
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(show.title, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                if (subtitle != null) {
-                    Text(subtitle, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
+                val kind = if (show.type == MOVIE) "Movie" else "TV show"
+                Text(
+                    if (subtitle != null) "$subtitle · $kind" else kind,
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
             IconButton(onClick = onRemove) { Icon(Icons.Filled.Delete, "Remove ${show.title}") }
         }

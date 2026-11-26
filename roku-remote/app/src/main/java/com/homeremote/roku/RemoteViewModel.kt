@@ -18,7 +18,11 @@ import org.json.JSONObject
 import java.net.URLEncoder
 
 /** A show the user saved for a channel. */
-data class FavoriteShow(val appId: String, val appName: String, val title: String)
+data class FavoriteShow(val appId: String, val appName: String, val title: String, val type: String = TV_SHOW)
+
+/** Roku's names for the two kinds of content its search can start. */
+const val TV_SHOW = "tv-show"
+const val MOVIE = "movie"
 
 class RemoteViewModel(app: Application) : AndroidViewModel(app) {
     private val prefs = app.getSharedPreferences("roku", Context.MODE_PRIVATE)
@@ -85,21 +89,24 @@ class RemoteViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * Asks the Roku to find a show in one channel and open it there
-     * (ECP "search/browse"). If the channel can't do that, the Roku shows
-     * its own search results for the show instead.
+     * Asks the Roku to find a show in one channel and start it there
+     * (ECP "search/browse"). The Roku only starts it by itself when it gets an
+     * exact title, the type (TV show or movie) and the channel; otherwise it
+     * shows its own search results for the show instead.
      */
     fun playShow(show: FavoriteShow) {
+        val title = encode(show.title)
         commands.trySend(
-            "/search/browse?keyword=${encode(show.title)}&provider-id=${encode(show.appId)}&launch=true",
+            "/search/browse?keyword=$title&title=$title&type=${show.type}" +
+                "&provider-id=${encode(show.appId)}&launch=true",
         )
     }
 
-    fun addFavorite(app: RokuApp, title: String) {
+    fun addFavorite(app: RokuApp, title: String, type: String) {
         val name = title.trim()
         if (name.isEmpty()) return
         if (favorites.any { it.appId == app.id && it.title.equals(name, ignoreCase = true) }) return
-        favorites = listOf(FavoriteShow(app.id, app.name, name)) + favorites
+        favorites = listOf(FavoriteShow(app.id, app.name, name, type)) + favorites
         saveFavorites()
     }
 
@@ -112,7 +119,7 @@ class RemoteViewModel(app: Application) : AndroidViewModel(app) {
         val array = JSONArray(prefs.getString("favorites", "[]"))
         (0 until array.length()).map { i ->
             val o = array.getJSONObject(i)
-            FavoriteShow(o.getString("appId"), o.getString("appName"), o.getString("title"))
+            FavoriteShow(o.getString("appId"), o.getString("appName"), o.getString("title"), o.optString("type", TV_SHOW))
         }
     } catch (e: Exception) {
         emptyList()
@@ -121,7 +128,7 @@ class RemoteViewModel(app: Application) : AndroidViewModel(app) {
     private fun saveFavorites() {
         val array = JSONArray()
         for (f in favorites) {
-            array.put(JSONObject().put("appId", f.appId).put("appName", f.appName).put("title", f.title))
+            array.put(JSONObject().put("appId", f.appId).put("appName", f.appName).put("title", f.title).put("type", f.type))
         }
         prefs.edit().putString("favorites", array.toString()).apply()
     }
