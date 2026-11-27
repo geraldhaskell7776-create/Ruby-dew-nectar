@@ -10,6 +10,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.async
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
@@ -22,6 +23,9 @@ import java.util.Locale
 
 /** A show or movie the user starred, and the Roku channel it was found on. */
 data class Favorite(val appId: String, val appName: String, val title: Title)
+
+/** A search result: which of the user's Roku channels stream it, and which other services do. */
+data class SearchHit(val title: Title, val onYourRoku: List<RokuApp>, val elsewhere: List<String>)
 
 /** What the Channels page knows about one channel's shows (or movies). */
 data class Browse(
@@ -62,6 +66,16 @@ class RemoteViewModel(app: Application) : AndroidViewModel(app) {
     val canBrowse get() = tmdb.available
     /** Keyed by "appId/tv" or "appId/movie". */
     val browse = mutableStateMapOf<String, Browse>()
+
+    var searchQuery by mutableStateOf("")
+        private set
+    var searching by mutableStateOf(false)
+        private set
+    var searchHits by mutableStateOf<List<SearchHit>>(emptyList())
+        private set
+    var searchError by mutableStateOf<String?>(null)
+        private set
+    private var searchJob: Job? = null
 
     /** Starred shows and movies, newest first. Kept on the phone only. */
     var favorites by mutableStateOf(loadFavorites())
@@ -106,6 +120,44 @@ class RemoteViewModel(app: Application) : AndroidViewModel(app) {
 
     fun launch(app: RokuApp) {
         commands.trySend("/launch/${app.id}")
+    }
+
+    /**
+     * Searches TMDB for shows and movies as the user types (after a short pause),
+     * then looks up which of this Roku's channels stream each result.
+     */
+    fun search(query: String) {
+        searchQuery = query
+        searchJob?.cancel()
+        searchError = null
+        if (query.isBlank()) {
+            searching = false
+            searchHits = emptyList()
+            return
+        }
+        searching = true
+        searchJob = viewModelScope.launch {
+            delay(450)
+            try {
+                val installed = apps
+                val titles = tmdb.search(query.trim()).take(12)
+                searchHits = titles.map { title ->
+                    async {
+                        val services = runCatching { tmdb.whereToWatch(title) }.getOrDefault(emptyList())
+                        val mine = installed.filter { matchProvider(it.name, services) != null }
+                        val matched = mine.mapNotNull { matchProvider(it.name, services)?.id }.toSet()
+                        SearchHit(title, mine, services.filter { it.id !in matched }.map { it.name }.distinct().take(4))
+                    }
+                }.awaitAll()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: TmdbException) {
+                searchError = "TMDB said no (error ${e.code}). The token may be wrong or expired."
+            } catch (e: Exception) {
+                searchError = "Couldn't search. Check the phone's internet connection."
+            }
+            searching = false
+        }
     }
 
     /** Loads the first (or, with [more], the next) page of a channel's shows or movies. */
@@ -213,7 +265,8 @@ class RemoteViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }.awaitAll()
             scanning = false
-            if (found.isEmpty()) {
+            // Only complain if the user hasn't connected some other way meanwhile.
+            if (found.isEmpty() && device == null) {
                 problem = "No Roku found on this Wi-Fi. You can type its IP address below."
             }
         }

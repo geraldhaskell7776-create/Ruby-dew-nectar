@@ -5,6 +5,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
+import java.net.URLEncoder
 
 /** A show or movie from TMDB. [kind] is "tv" or "movie". */
 data class Title(val id: Int, val kind: String, val name: String, val poster: String?, val year: String)
@@ -41,6 +42,41 @@ class Tmdb(private val token: String, val region: String) {
                 year = date.take(4),
             )
         }
+    }
+
+    /** Shows and movies whose name matches [query], best matches first. */
+    suspend fun search(query: String): List<Title> {
+        val q = URLEncoder.encode(query, "UTF-8").replace("+", "%20")
+        val results = get("/3/search/multi?query=$q&include_adult=false").getJSONArray("results")
+        return (0 until results.length()).mapNotNull { i ->
+            val o = results.getJSONObject(i)
+            val kind = o.optString("media_type")
+            if (kind != TV && kind != MOVIE) return@mapNotNull null
+            val date = o.optString(if (kind == TV) "first_air_date" else "release_date", "")
+            Title(
+                id = o.getInt("id"),
+                kind = kind,
+                name = o.optString(if (kind == TV) "name" else "title", "?"),
+                poster = o.optString("poster_path", "").takeIf { it.startsWith("/") },
+                year = date.take(4),
+            )
+        }
+    }
+
+    /** The services that stream a title in this country (subscription, free or with ads; not rent/buy). */
+    suspend fun whereToWatch(title: Title): List<Provider> {
+        val here = get("/3/${title.kind}/${title.id}/watch/providers")
+            .getJSONObject("results").optJSONObject(region) ?: return emptyList()
+        val found = linkedMapOf<Int, Provider>()
+        for (type in listOf("flatrate", "free", "ads")) {
+            val list = here.optJSONArray(type) ?: continue
+            for (i in 0 until list.length()) {
+                val o = list.getJSONObject(i)
+                val id = o.getInt("provider_id")
+                if (id !in found) found[id] = Provider(id, o.getString("provider_name"), o.optInt("display_priority", 999))
+            }
+        }
+        return found.values.toList()
     }
 
     /** Finds the TMDB streaming service for a Roku channel name, or null if there isn't one. */
@@ -101,7 +137,7 @@ private val aliases = mapOf(
 /**
  * Matches a Roku channel name (e.g. "Prime Video", "Peacock TV", "Tubi - Free Movies & TV")
  * to a TMDB streaming service. Exact name first, then a service whose name starts with the
- * channel's ("Paramount+" -> "Paramount Plus Premium"), skipping add-on channels sold
+ * channel's ("Paramount+" -> "Paramount Plus Premium", but not "YouTube" -> "YouTube TV"), skipping add-on channels sold
  * through Amazon, Apple or Roku, and preferring the best-known service.
  */
 fun matchProvider(channelName: String, providers: List<Provider>): Provider? {
@@ -122,7 +158,9 @@ fun matchProvider(channelName: String, providers: List<Provider>): Provider? {
     for (k in keys) usable.firstOrNull { normalize(it.name) == k }?.let { return it }
     for (k in keys) {
         if (k.length < 3) continue
-        usable.filter { normalize(it.name).startsWith(k) }.minByOrNull { it.priority }?.let { return it }
+        // "YouTube" must not match "YouTube TV", nor "Hulu" "Hulu Live TV": those are separate channels.
+        usable.filter { val n = normalize(it.name); n.startsWith(k) && "tv" !in n.removePrefix(k) }
+            .minByOrNull { it.priority }?.let { return it }
     }
     return null
 }

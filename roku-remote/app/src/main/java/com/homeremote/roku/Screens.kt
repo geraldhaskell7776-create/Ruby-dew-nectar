@@ -118,7 +118,7 @@ fun RemoteApp(vm: RemoteViewModel) {
     // The channel whose page is open on the Channels tab, if any.
     var openChannelId by rememberSaveable { mutableStateOf<String?>(null) }
     val openChannel = vm.apps.firstOrNull { it.id == openChannelId }
-    BackHandler(enabled = tab == 1 && openChannel != null) { openChannelId = null }
+    BackHandler(enabled = tab == 1 && openChannel != null) { openChannelId = null; vm.search("") }
     ChristmasBackground {
     Scaffold(
         containerColor = Color.Transparent,
@@ -153,9 +153,9 @@ fun RemoteApp(vm: RemoteViewModel) {
             when (tab) {
                 0 -> RemoteScreen(vm)
                 else -> if (openChannel != null) {
-                    ChannelPage(vm, openChannel, onBack = { openChannelId = null }, onLaunched = { tab = 0 })
+                    ChannelPage(vm, openChannel, onBack = { openChannelId = null; vm.search("") }, onLaunched = { tab = 0 })
                 } else {
-                    ChannelsScreen(vm, onOpen = { openChannelId = it.id }, onLaunched = { tab = 0 })
+                    ChannelsScreen(vm, onOpen = { openChannelId = it.id; vm.search("") }, onLaunched = { tab = 0 })
                 }
             }
         }
@@ -427,6 +427,20 @@ private fun ChannelsScreen(vm: RemoteViewModel, onOpen: (RokuApp) -> Unit, onLau
         verticalArrangement = Arrangement.spacedBy(10.dp),
         modifier = Modifier.fillMaxSize(),
     ) {
+        if (vm.canBrowse) {
+            item(span = { GridItemSpan(maxLineSpan) }, key = "search") {
+                SearchField(vm, "Search shows and movies")
+            }
+        }
+        if (vm.canBrowse && vm.searchQuery.isNotBlank()) {
+            item(span = { GridItemSpan(maxLineSpan) }, key = "search-status") {
+                SearchStatus(vm, empty = vm.searchHits.isEmpty(), emptyText = "Nothing found. Try a different spelling.")
+            }
+            items(vm.searchHits, span = { GridItemSpan(maxLineSpan) }, key = { "hit-${it.title.kind}-${it.title.id}" }) { hit ->
+                SearchResultRow(vm, hit, onLaunched)
+            }
+            return@LazyVerticalGrid
+        }
         if (vm.favorites.isNotEmpty()) {
             item(span = { GridItemSpan(maxLineSpan) }, key = "favorites") { FavoritesRow(vm, onLaunched) }
             item(span = { GridItemSpan(maxLineSpan) }, key = "channels-title") {

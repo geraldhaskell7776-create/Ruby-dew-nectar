@@ -26,7 +26,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material3.Button
@@ -107,6 +109,30 @@ fun ChannelPage(vm: RemoteViewModel, app: RokuApp, onBack: () -> Unit, onLaunche
         if (!vm.canBrowse) {
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Hint("Show browsing is off in this copy of the app: it was built without a TMDB token.")
+            }
+            return@LazyVerticalGrid
+        }
+
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            SearchField(vm, "Search ${app.name}")
+        }
+
+        if (vm.searchQuery.isNotBlank()) {
+            val hits = vm.searchHits.filter { hit -> hit.onYourRoku.any { it.id == app.id } }
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                SearchStatus(vm, empty = hits.isEmpty(), emptyText = "No matches on ${app.name}. Clear the search to see what else is on the Channels tab.")
+            }
+            items(hits, key = { "s-${it.title.kind}-${it.title.id}" }) { hit ->
+                PosterCard(
+                    title = hit.title,
+                    starred = vm.isFavorite(app.id, hit.title),
+                    onStar = { vm.toggleFavorite(app, hit.title) },
+                    onOpen = {
+                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                        vm.openTitle(app.id, app.name, hit.title)
+                        onLaunched()
+                    },
+                )
             }
             return@LazyVerticalGrid
         }
@@ -194,7 +220,14 @@ fun FavoritesRow(vm: RemoteViewModel, onLaunched: () -> Unit) {
 }
 
 @Composable
-private fun PosterCard(title: Title, starred: Boolean, onStar: () -> Unit, onOpen: () -> Unit) {
+private fun PosterCard(
+    title: Title,
+    starred: Boolean,
+    onStar: () -> Unit,
+    onOpen: () -> Unit,
+    showStar: Boolean = true,
+    showName: Boolean = true,
+) {
     Column {
         Box(
             Modifier
@@ -221,7 +254,7 @@ private fun PosterCard(title: Title, starred: Boolean, onStar: () -> Unit, onOpe
                         .padding(6.dp),
                 )
             }
-            Box(
+            if (showStar) Box(
                 Modifier
                     .align(Alignment.TopEnd)
                     .padding(5.dp)
@@ -239,6 +272,7 @@ private fun PosterCard(title: Title, starred: Boolean, onStar: () -> Unit, onOpe
                 )
             }
         }
+        if (!showName) return@Column
         Spacer(Modifier.height(4.dp))
         Text(title.name, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
         if (title.year.isNotBlank()) {
@@ -250,4 +284,113 @@ private fun PosterCard(title: Title, starred: Boolean, onStar: () -> Unit, onOpe
 @Composable
 private fun Hint(text: String) {
     Text(text, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(vertical = 8.dp))
+}
+
+/** The box for searching shows and movies by name. */
+@Composable
+fun SearchField(vm: RemoteViewModel, placeholder: String) {
+    androidx.compose.material3.OutlinedTextField(
+        value = vm.searchQuery,
+        onValueChange = vm::search,
+        placeholder = { Text(placeholder) },
+        leadingIcon = { Icon(Icons.Filled.Search, null) },
+        trailingIcon = {
+            if (vm.searchQuery.isNotEmpty()) {
+                IconButton(onClick = { vm.search("") }) { Icon(Icons.Filled.Close, "Clear search") }
+            }
+        },
+        singleLine = true,
+        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Search),
+        shape = RoundedCornerShape(14.dp),
+        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+            unfocusedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+            focusedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+        ),
+        modifier = Modifier.fillMaxWidth(),
+    )
+}
+
+/** Searching / error / "nothing found" line under the search box, or null when results are showing. */
+@Composable
+fun SearchStatus(vm: RemoteViewModel, empty: Boolean, emptyText: String) {
+    when {
+        vm.searching -> Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 8.dp)) {
+            CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+            Spacer(Modifier.width(10.dp))
+            Text("Searching…", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        vm.searchError != null -> Text(vm.searchError!!, color = MaterialTheme.colorScheme.error, fontSize = 14.sp)
+        empty -> Hint(emptyText)
+    }
+}
+
+/** One search result: poster, name, and buttons for the channels on this Roku that have it. */
+@Composable
+fun SearchResultRow(vm: RemoteViewModel, hit: SearchHit, onLaunched: () -> Unit) {
+    val view = LocalView.current
+    val first = hit.onYourRoku.firstOrNull()
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .padding(10.dp),
+    ) {
+        Box(Modifier.width(78.dp)) {
+            PosterCard(
+                title = hit.title,
+                starred = first != null && vm.isFavorite(first.id, hit.title),
+                onStar = { first?.let { vm.toggleFavorite(it, hit.title) } },
+                onOpen = {
+                    if (first != null) {
+                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                        vm.openTitle(first.id, first.name, hit.title)
+                        onLaunched()
+                    }
+                },
+                showStar = first != null,
+                showName = false,
+            )
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(hit.title.name, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            val kind = if (hit.title.kind == TV) "TV show" else "Movie"
+            Text(
+                listOf(kind, hit.title.year).filter { it.isNotBlank() }.joinToString(" · "),
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(8.dp))
+            if (hit.onYourRoku.isEmpty()) {
+                Text("Not on any channel on your Roku.", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else {
+                Text("Watch on:", fontSize = 13.sp)
+                Spacer(Modifier.height(4.dp))
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(hit.onYourRoku, key = { it.id }) { app ->
+                        Button(
+                            onClick = {
+                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                vm.openTitle(app.id, app.name, hit.title)
+                                onLaunched()
+                            },
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                            modifier = Modifier.height(34.dp),
+                        ) { Text(app.name, fontSize = 13.sp, maxLines = 1) }
+                    }
+                }
+            }
+            if (hit.elsewhere.isNotEmpty()) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "Also on: " + hit.elsewhere.joinToString(", "),
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
 }
