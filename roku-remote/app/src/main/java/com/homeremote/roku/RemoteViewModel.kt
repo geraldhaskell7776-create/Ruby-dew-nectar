@@ -208,17 +208,16 @@ class RemoteViewModel(app: Application) : AndroidViewModel(app) {
     fun openTitle(appId: String, appName: String, title: Title) {
         showNotice("Opening \"${title.name}\" on $appName…")
         viewModelScope.launch {
-            val contentId = try {
+            val link = try {
                 withTimeoutOrNull(6000) {
                     tmdb.providerFor(appName)?.let { Wikidata.idFor(title, it) }
                 }
             } catch (e: Exception) {
                 null
             }
-            if (contentId != null) {
-                val mediaType = if (title.kind == TV) "series" else "movie"
+            if (link != null) {
                 val startedAt = System.currentTimeMillis()
-                commands.trySend("/launch/$appId?contentId=${encode(contentId)}&mediaType=$mediaType")
+                commands.trySend("/launch/$appId?contentId=${encode(link.contentId)}&mediaType=${link.mediaType}")
                 showNotice(
                     "Opening \"${title.name}\" on $appName (direct link). If it asks who's watching, " +
                         "the app picks the highlighted profile in a few seconds.",
