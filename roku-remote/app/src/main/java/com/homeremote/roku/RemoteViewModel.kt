@@ -18,6 +18,7 @@ import kotlinx.coroutines.delay
 import org.json.JSONArray
 import org.json.JSONObject
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import java.net.URLEncoder
 import java.util.Locale
 
@@ -193,13 +194,36 @@ class RemoteViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * Opens the channel a show is on. Roku doesn't let phone apps jump
-     * straight into a show on most channels, so the user picks it there.
+     * Opens a show on the TV. Roku channels can open a show directly when given
+     * the service's own ID for it ("deep linking": /launch/12?contentId=80117552&mediaType=series),
+     * so we look that ID up on Wikidata. Without one, or if the channel ignores it,
+     * the channel just opens and the user picks the show there.
      */
     fun openTitle(appId: String, appName: String, title: Title) {
-        commands.trySend("/launch/$appId")
-        showNotice("Opening $appName. Find \"${title.name}\" there; the keyboard button can type it for you.")
+        showNotice("Opening \"${title.name}\" on $appName…")
+        viewModelScope.launch {
+            val contentId = try {
+                withTimeoutOrNull(6000) {
+                    tmdb.providerFor(appName)?.let { Wikidata.idFor(title, it) }
+                }
+            } catch (e: Exception) {
+                null
+            }
+            if (contentId != null) {
+                val mediaType = if (title.kind == TV) "series" else "movie"
+                commands.trySend("/launch/$appId?contentId=${encode(contentId)}&mediaType=$mediaType")
+                showNotice(
+                    "Opening \"${title.name}\" on $appName. If $appName asks who's watching, pick a profile " +
+                        "with the remote and it should go to the show.",
+                )
+            } else {
+                commands.trySend("/launch/$appId")
+                showNotice("Opening $appName. Find \"${title.name}\" there; the keyboard button can type it for you.")
+            }
+        }
     }
+
+    private fun encode(text: String) = URLEncoder.encode(text, "UTF-8").replace("+", "%20")
 
     fun isFavorite(appId: String, title: Title) = favorites.any { it.appId == appId && it.title.id == title.id && it.title.kind == title.kind }
 
