@@ -4,6 +4,11 @@ plugins {
     id 'org.jetbrains.kotlin.plugin.compose'
 }
 
+// The TMDB token comes from local.properties (not committed to git): tmdbToken=...
+def localProps = new Properties()
+def localFile = rootProject.file('local.properties')
+if (localFile.exists()) localFile.withInputStream { localProps.load(it) }
+
 android {
     namespace 'com.homeremote.roku'
     compileSdk 35
@@ -14,10 +19,12 @@ android {
         targetSdk 35
         versionCode 1
         versionName '1.0'
+        buildConfigField 'String', 'TMDB_TOKEN', "\"${localProps.getProperty('tmdbToken', '')}\""
     }
 
     buildFeatures {
         compose true
+        buildConfig true
     }
 
     compileOptions {
@@ -44,4 +51,5 @@ dependencies {
     implementation 'androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7'
     implementation 'androidx.lifecycle:lifecycle-runtime-compose:2.8.7'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0'
+    implementation 'io.coil-kt:coil-compose:2.7.0'
 }

@@ -1,6 +1,7 @@
 package com.homeremote.roku
 
 import android.view.HapticFeedbackConstants
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -22,6 +23,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
@@ -113,6 +115,10 @@ fun RemoteApp(vm: RemoteViewModel) {
         return
     }
     var tab by rememberSaveable { mutableStateOf(0) }
+    // The channel whose page is open on the Channels tab, if any.
+    var openChannelId by rememberSaveable { mutableStateOf<String?>(null) }
+    val openChannel = vm.apps.firstOrNull { it.id == openChannelId }
+    BackHandler(enabled = tab == 1 && openChannel != null) { openChannelId = null }
     ChristmasBackground {
     Scaffold(
         containerColor = Color.Transparent,
@@ -143,9 +149,14 @@ fun RemoteApp(vm: RemoteViewModel) {
             DeviceBar(device, onChange = vm::changeRoku)
             ChristmasLights()
             vm.problem?.let { ProblemBanner(it) }
+            vm.notice?.let { NoticeBanner(it) }
             when (tab) {
                 0 -> RemoteScreen(vm)
-                else -> ChannelsScreen(vm, onLaunched = { tab = 0 })
+                else -> if (openChannel != null) {
+                    ChannelPage(vm, openChannel, onBack = { openChannelId = null }, onLaunched = { tab = 0 })
+                } else {
+                    ChannelsScreen(vm, onOpen = { openChannelId = it.id }, onLaunched = { tab = 0 })
+                }
             }
         }
     }
@@ -186,6 +197,20 @@ private fun ProblemBanner(text: String) {
             .padding(horizontal = 16.dp, vertical = 4.dp)
             .clip(RoundedCornerShape(10.dp))
             .background(MaterialTheme.colorScheme.error.copy(alpha = 0.12f))
+            .padding(12.dp),
+    )
+}
+
+@Composable
+private fun NoticeBanner(text: String) {
+    Text(
+        text,
+        fontSize = 14.sp,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(ChristmasGreen.copy(alpha = 0.3f))
             .padding(12.dp),
     )
 }
@@ -379,7 +404,7 @@ private fun RemoteKey(
 // ---------------------------------------------------------------- Channels
 
 @Composable
-private fun ChannelsScreen(vm: RemoteViewModel, onLaunched: () -> Unit) {
+private fun ChannelsScreen(vm: RemoteViewModel, onOpen: (RokuApp) -> Unit, onLaunched: () -> Unit) {
     val view = LocalView.current
     if (vm.apps.isEmpty()) {
         Column(
@@ -402,13 +427,18 @@ private fun ChannelsScreen(vm: RemoteViewModel, onLaunched: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(10.dp),
         modifier = Modifier.fillMaxSize(),
     ) {
+        if (vm.favorites.isNotEmpty()) {
+            item(span = { GridItemSpan(maxLineSpan) }, key = "favorites") { FavoritesRow(vm, onLaunched) }
+            item(span = { GridItemSpan(maxLineSpan) }, key = "channels-title") {
+                Text("Channels", fontWeight = FontWeight.SemiBold, fontSize = 18.sp, modifier = Modifier.padding(top = 6.dp))
+            }
+        }
         items(vm.apps, key = { it.id }) { app ->
             Card(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                 modifier = Modifier.clickable {
                     view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                    vm.launch(app)
-                    onLaunched()
+                    onOpen(app)
                 },
             ) {
                 val icon = vm.icons[app.id]

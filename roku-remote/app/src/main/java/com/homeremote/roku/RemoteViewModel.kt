@@ -11,9 +11,28 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
+import org.json.JSONArray
+import org.json.JSONObject
 import kotlinx.coroutines.launch
 import java.net.URLEncoder
+import java.util.Locale
+
+/** A show or movie the user starred, and the Roku channel it was found on. */
+data class Favorite(val appId: String, val appName: String, val title: Title)
+
+/** What the Channels page knows about one channel's shows (or movies). */
+data class Browse(
+    val loading: Boolean = false,
+    val titles: List<Title> = emptyList(),
+    val page: Int = 0,
+    val hasMore: Boolean = true,
+    /** TMDB has no listing for this channel. */
+    val noMatch: Boolean = false,
+    val error: String? = null,
+)
 
 class RemoteViewModel(app: Application) : AndroidViewModel(app) {
     private val prefs = app.getSharedPreferences("roku", Context.MODE_PRIVATE)
@@ -32,6 +51,20 @@ class RemoteViewModel(app: Application) : AndroidViewModel(app) {
     var problem by mutableStateOf<String?>(null)
         private set
     var apps by mutableStateOf<List<RokuApp>>(emptyList())
+        private set
+
+    /** A short friendly note, e.g. what the TV is doing now; clears itself. */
+    var notice by mutableStateOf<String?>(null)
+        private set
+    private var noticeJob: Job? = null
+
+    private val tmdb = Tmdb(BuildConfig.TMDB_TOKEN, Locale.getDefault().country.ifBlank { "US" })
+    val canBrowse get() = tmdb.available
+    /** Keyed by "appId/tv" or "appId/movie". */
+    val browse = mutableStateMapOf<String, Browse>()
+
+    /** Starred shows and movies, newest first. Kept on the phone only. */
+    var favorites by mutableStateOf(loadFavorites())
         private set
     val icons = mutableStateMapOf<String, ImageBitmap>()
     private var loadingApps = false
@@ -73,6 +106,98 @@ class RemoteViewModel(app: Application) : AndroidViewModel(app) {
 
     fun launch(app: RokuApp) {
         commands.trySend("/launch/${app.id}")
+    }
+
+    /** Loads the first (or, with [more], the next) page of a channel's shows or movies. */
+    fun browse(app: RokuApp, kind: String, more: Boolean = false) {
+        val key = "${app.id}/$kind"
+        val now = browse[key] ?: Browse()
+        if (now.loading || now.noMatch) return
+        if (!more && now.page > 0 && now.error == null) return
+        if (more && !now.hasMore) return
+        browse[key] = now.copy(loading = true, error = null)
+        viewModelScope.launch {
+            browse[key] = try {
+                val provider = tmdb.providerFor(app.name)
+                if (provider == null) {
+                    Browse(noMatch = true)
+                } else {
+                    val page = now.page + 1
+                    val found = tmdb.discover(kind, provider.id, page)
+                    val known = now.titles.map { it.id }.toSet()
+                    now.copy(
+                        loading = false,
+                        titles = now.titles + found.filter { it.id !in known },
+                        page = page,
+                        hasMore = found.size >= 20,
+                    )
+                }
+            } catch (e: TmdbException) {
+                now.copy(loading = false, error = "TMDB said no (error ${e.code}). The token may be wrong or expired.")
+            } catch (e: Exception) {
+                now.copy(loading = false, error = "Couldn't load shows. Check the phone's internet connection.")
+            }
+        }
+    }
+
+    /**
+     * Opens the channel a show is on. Roku doesn't let phone apps jump
+     * straight into a show on most channels, so the user picks it there.
+     */
+    fun openTitle(appId: String, appName: String, title: Title) {
+        commands.trySend("/launch/$appId")
+        showNotice("Opening $appName. Find \"${title.name}\" there; the keyboard button can type it for you.")
+    }
+
+    fun isFavorite(appId: String, title: Title) = favorites.any { it.appId == appId && it.title.id == title.id && it.title.kind == title.kind }
+
+    fun toggleFavorite(app: RokuApp, title: Title) {
+        favorites = if (isFavorite(app.id, title)) {
+            favorites.filterNot { it.appId == app.id && it.title.id == title.id && it.title.kind == title.kind }
+        } else {
+            listOf(Favorite(app.id, app.name, title)) + favorites
+        }
+        saveFavorites()
+    }
+
+    fun removeFavorite(f: Favorite) {
+        favorites = favorites - f
+        saveFavorites()
+    }
+
+    private fun showNotice(text: String) {
+        notice = text
+        noticeJob?.cancel()
+        noticeJob = viewModelScope.launch {
+            delay(10_000)
+            notice = null
+        }
+    }
+
+    private fun loadFavorites(): List<Favorite> = try {
+        val array = JSONArray(prefs.getString("starred", "[]"))
+        (0 until array.length()).map { i ->
+            val o = array.getJSONObject(i)
+            Favorite(
+                o.getString("appId"),
+                o.getString("appName"),
+                Title(o.getInt("id"), o.getString("kind"), o.getString("name"), o.optString("poster").ifBlank { null }, o.optString("year")),
+            )
+        }
+    } catch (e: Exception) {
+        emptyList()
+    }
+
+    private fun saveFavorites() {
+        val array = JSONArray()
+        for (f in favorites) {
+            array.put(
+                JSONObject().put("appId", f.appId).put("appName", f.appName)
+                    .put("id", f.title.id).put("kind", f.title.kind).put("name", f.title.name)
+                    .put("poster", f.title.poster ?: "").put("year", f.title.year),
+            )
+        }
+        prefs.edit().putString("starred", array.toString()).remove("favorites").apply()
     }
 
     fun scan() {
