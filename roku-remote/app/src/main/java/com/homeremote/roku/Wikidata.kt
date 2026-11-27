@@ -8,7 +8,7 @@ import java.net.URL
 import java.net.URLEncoder
 
 /** What the Roku needs to open a title directly: the service's ID and Roku's media type. */
-data class DeepLink(val contentId: String, val mediaType: String)
+data class DeepLink(val contentId: String, val mediaType: String, val label: String = "")
 
 /**
  * Looks up a show's or movie's ID inside each streaming service (e.g. Netflix's
@@ -30,53 +30,106 @@ object Wikidata {
 
     private val cache = mutableMapOf<String, Map<String, List<String>>>()
 
-    /**
-     * The ID of [title] inside the service a Roku channel belongs to, or null if
-     * Wikidata doesn't know it (or we don't know that service).
-     */
-    suspend fun idFor(title: Title, service: Provider): DeepLink? {
-        val key = service.name.lowercase().replace("+", "plus").filter { it.isLetterOrDigit() }
-        val ids = services[key] ?: return null
+    private fun serviceKey(service: Provider) = service.name.lowercase().replace("+", "plus").filter { it.isLetterOrDigit() }
+
+    /** The raw ID Wikidata has for [title] on this service, or null. */
+    private suspend fun rawId(title: Title, service: Provider): String? {
+        val ids = services[serviceKey(service)] ?: return null
         val props = if (title.kind == TV) ids.tv else ids.movie
         val all = lookup(title)
-        val raw = props.firstNotNullOfOrNull { all[it]?.firstOrNull() } ?: return null
-        val mediaType = if (title.kind == TV) "series" else "movie"
-        if (key == "amazonprimevideo") {
-            // Wikidata stores Amazon's store code (e.g. B07QQQ52B3), which Prime's Roku channel
-            // ignores. Prime's own page for that code names the internal ID it does use.
-            val gti = primeTitleId(raw) ?: return null
-            return DeepLink(gti, if (title.kind == TV) "season" else "movie")
-        }
-        // Max's IDs are stored as "series/urn:hbo:series:..."; the Roku wants the urn part.
-        return DeepLink(raw.substringAfter('/', raw), mediaType)
+        return props.firstNotNullOfOrNull { all[it]?.firstOrNull() }
     }
 
-    private val primeCache = mutableMapOf<String, String?>()
+    /**
+     * The best known way to open [title] directly on this service, or null if
+     * Wikidata doesn't know it (or we don't know that service).
+     */
+    suspend fun idFor(title: Title, service: Provider): DeepLink? = candidates(title, service).links.firstOrNull()
 
-    /** Reads primevideo.com/detail/<code> and returns the page's own "amzn1.dv.gti...." ID. */
-    private suspend fun primeTitleId(code: String): String? {
-        if (code.startsWith("amzn1.dv.gti.")) return code
-        if (code in primeCache) return primeCache[code]
-        val found = withContext(Dispatchers.IO) {
-            val conn = (URL("https://www.primevideo.com/detail/" + URLEncoder.encode(code, "UTF-8")).openConnection() as HttpURLConnection).apply {
-                connectTimeout = 5000
-                readTimeout = 8000
-                instanceFollowRedirects = true
-                setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Mobile Safari/537.36")
-                setRequestProperty("Accept-Language", "en-US,en;q=0.9")
+    /** Every way we know to try opening [title] on this service, best guess first, plus notes on what failed. */
+    suspend fun candidates(title: Title, service: Provider): Candidates {
+        val notes = mutableListOf<String>()
+        val raw = rawId(title, service)
+        if (raw == null) {
+            notes += if (services.containsKey(serviceKey(service))) {
+                "Wikidata has no ${service.name} ID for this title."
+            } else {
+                "No ID source for ${service.name}."
             }
-            try {
-                if (conn.responseCode >= 400) return@withContext null
-                val html = conn.inputStream.bufferedReader().use { it.readText() }
-                Regex("""pageTitleId":"(amzn1\.dv\.gti\.[0-9a-f-]{36})""").find(html)?.groupValues?.get(1)
-            } catch (e: Exception) {
-                null
-            } finally {
-                conn.disconnect()
-            }
+            return Candidates(emptyList(), notes)
         }
-        primeCache[code] = found
-        return found
+        val tvTypes = listOf("series", "season", "episode", "movie")
+        val movieTypes = listOf("movie", "series", "episode")
+        val types = if (title.kind == TV) tvTypes else movieTypes
+        if (serviceKey(service) != "amazonprimevideo") {
+            // Max's IDs are stored as "series/urn:hbo:series:..."; the Roku wants the urn part.
+            val id = raw.substringAfter('/', raw)
+            notes += "${service.name} ID: $id"
+            return Candidates(types.map { DeepLink(id, it, "ID as $it") }, notes)
+        }
+        // Prime: Wikidata has Amazon's store code (B0...). Prime's own page for it also names
+        // the internal ID (amzn1.dv.gti....) and the ID in Prime's web links (detail/0T5B...).
+        notes += "Wikidata Prime ID: $raw"
+        val page = primePage(raw)
+        notes += page.note
+        val links = mutableListOf<DeepLink>()
+        page.detailId?.let { id -> types.forEach { links += DeepLink(id, it, "Web-link ID as $it") } }
+        page.gti?.let { id -> types.forEach { links += DeepLink(id, it, "Internal ID as $it") } }
+        types.forEach { links += DeepLink(raw, it, "Wikidata ID as $it") }
+        return Candidates(links, notes)
+    }
+
+    class Candidates(val links: List<DeepLink>, val notes: List<String>)
+
+    private class PrimePage(val gti: String?, val detailId: String?, val note: String)
+
+    private val primeCache = mutableMapOf<String, PrimePage>()
+
+    /** Reads Prime's web page for a store code and pulls out its other IDs. */
+    private suspend fun primePage(code: String): PrimePage {
+        primeCache[code]?.takeIf { it.gti != null || it.detailId != null }?.let { return it }
+        val urls = listOf(
+            "https://www.primevideo.com/detail/$code",
+            "https://www.amazon.com/gp/video/detail/$code",
+        )
+        val problems = mutableListOf<String>()
+        for (url in urls) {
+            val result = withContext(Dispatchers.IO) {
+                val conn = (URL(url).openConnection() as HttpURLConnection).apply {
+                    connectTimeout = 6000
+                    readTimeout = 10000
+                    instanceFollowRedirects = true
+                    setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Mobile Safari/537.36")
+                    setRequestProperty("Accept-Language", "en-US,en;q=0.9")
+                    setRequestProperty("Accept", "text/html")
+                }
+                try {
+                    val code2 = conn.responseCode
+                    if (code2 >= 400) return@withContext "HTTP $code2 from ${conn.url.host}" to null
+                    val html = conn.inputStream.bufferedReader().use { it.readText() }
+                    val gti = Regex("""pageTitleId":"(amzn1\.dv\.gti\.[0-9a-f-]{36})""").find(html)?.groupValues?.get(1)
+                    val detail = Regex("""rel="canonical" href="https://www\.primevideo\.com/detail/([A-Z0-9]{10,})""").find(html)?.groupValues?.get(1)
+                    if (gti == null && detail == null) {
+                        val robot = html.contains("captcha", ignoreCase = true) || html.contains("robot", ignoreCase = true)
+                        (if (robot) "Robot check from ${conn.url.host}" else "No IDs found on ${conn.url.host}") to null
+                    } else {
+                        "Read Prime's page (${conn.url.host})" to PrimePage(gti, detail, "")
+                    }
+                } catch (e: Exception) {
+                    "Couldn't load ${URL(url).host}: ${e.javaClass.simpleName}" to null
+                } finally {
+                    conn.disconnect()
+                }
+            }
+            val page = result.second
+            if (page != null) {
+                val done = PrimePage(page.gti, page.detailId, result.first + ". Internal ID: ${page.gti ?: "none"}; web-link ID: ${page.detailId ?: "none"}")
+                primeCache[code] = done
+                return done
+            }
+            problems += result.first
+        }
+        return PrimePage(null, null, problems.joinToString("; "))
     }
 
     private suspend fun lookup(title: Title): Map<String, List<String>> {

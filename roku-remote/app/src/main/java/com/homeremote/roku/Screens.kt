@@ -150,6 +150,7 @@ fun RemoteApp(vm: RemoteViewModel) {
             ChristmasLights()
             vm.problem?.let { ProblemBanner(it) }
             vm.notice?.let { NoticeBanner(it) }
+            LinkTestDialog(vm)
             when (tab) {
                 0 -> RemoteScreen(vm)
                 else -> if (openChannel != null) {

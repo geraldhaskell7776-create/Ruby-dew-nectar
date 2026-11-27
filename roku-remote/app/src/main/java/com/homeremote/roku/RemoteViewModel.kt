@@ -238,6 +238,45 @@ class RemoteViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun encode(text: String) = URLEncoder.encode(text, "UTF-8").replace("+", "%20")
 
+    /** The link tester: every way we know to open one title on one channel, to find which works. */
+    class LinkTest(val app: RokuApp, val title: Title, val loading: Boolean, val links: List<DeepLink>, val notes: List<String>)
+
+    var linkTest by mutableStateOf<LinkTest?>(null)
+        private set
+
+    fun openLinkTest(app: RokuApp, title: Title) {
+        linkTest = LinkTest(app, title, true, emptyList(), emptyList())
+        viewModelScope.launch {
+            val result = try {
+                val provider = tmdb.providerFor(app.name)
+                if (provider == null) {
+                    Wikidata.Candidates(emptyList(), listOf("TMDB has no service matching ${app.name}."))
+                } else {
+                    Wikidata.candidates(title, provider)
+                }
+            } catch (e: Exception) {
+                Wikidata.Candidates(emptyList(), listOf("Lookup failed: ${e.javaClass.simpleName} ${e.message ?: ""}"))
+            }
+            if (linkTest?.app == app && linkTest?.title == title) {
+                linkTest = LinkTest(app, title, false, result.links, result.notes)
+            }
+        }
+    }
+
+    fun closeLinkTest() {
+        linkTest = null
+    }
+
+    /** Goes Home first (so the channel starts fresh), then opens the channel with this link. */
+    fun tryLink(app: RokuApp, link: DeepLink) {
+        lastPressAt = System.currentTimeMillis()
+        viewModelScope.launch {
+            commands.trySend("/keypress/Home")
+            delay(3000)
+            commands.trySend("/launch/${app.id}?contentId=${encode(link.contentId)}&mediaType=${link.mediaType}")
+        }
+    }
+
     fun isFavorite(appId: String, title: Title) = favorites.any { it.appId == appId && it.title.id == title.id && it.title.kind == title.kind }
 
     fun toggleFavorite(app: RokuApp, title: Title) {

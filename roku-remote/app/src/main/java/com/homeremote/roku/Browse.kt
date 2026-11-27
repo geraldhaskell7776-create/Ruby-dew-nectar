@@ -22,6 +22,7 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -381,6 +382,16 @@ fun SearchResultRow(vm: RemoteViewModel, hit: SearchHit, onLaunched: () -> Unit)
                     }
                 }
             }
+            if (hit.onYourRoku.isNotEmpty()) {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    for (app in hit.onYourRoku) {
+                        androidx.compose.material3.TextButton(
+                            onClick = { vm.openLinkTest(app, hit.title) },
+                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
+                        ) { Text("Test ${app.name} links", fontSize = 12.sp) }
+                    }
+                }
+            }
             if (hit.elsewhere.isNotEmpty()) {
                 Spacer(Modifier.height(6.dp))
                 Text(
@@ -393,4 +404,39 @@ fun SearchResultRow(vm: RemoteViewModel, hit: SearchHit, onLaunched: () -> Unit)
             }
         }
     }
+}
+
+/** Lists every way to open a title on a channel; each "Try" sends one to the Roku. */
+@Composable
+fun LinkTestDialog(vm: RemoteViewModel) {
+    val test = vm.linkTest ?: return
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = vm::closeLinkTest,
+        confirmButton = { androidx.compose.material3.TextButton(onClick = vm::closeLinkTest) { Text("Close") } },
+        title = { Text("Link tester: ${test.title.name} on ${test.app.name}", fontSize = 18.sp) },
+        text = {
+            androidx.compose.foundation.lazy.LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                item {
+                    Text(
+                        "Tap Try on each line, watch the TV, and note the number of the one that opens the show. " +
+                            "Each try goes to the Roku home screen first, then opens ${test.app.name} (about 3 seconds).",
+                        fontSize = 13.sp,
+                    )
+                }
+                items(test.notes) { Text(it, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                if (test.loading) item { CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp) }
+                if (!test.loading && test.links.isEmpty()) item { Text("No IDs to try for this title.", fontSize = 14.sp) }
+                itemsIndexed(test.links) { i, link ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("${i + 1}. ${link.label}", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                            Text(link.contentId, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        Button(onClick = { vm.tryLink(test.app, link) }, contentPadding = PaddingValues(horizontal = 14.dp)) { Text("Try ${i + 1}") }
+                    }
+                }
+            }
+        },
+    )
 }
