@@ -32,8 +32,41 @@ object Wikidata {
 
     private fun serviceKey(service: Provider) = service.name.lowercase().replace("+", "plus").filter { it.isLetterOrDigit() }
 
-    /** The raw ID Wikidata has for [title] on this service, or null. */
+    /**
+     * IDs Wikidata is missing, keyed "service|kind|tmdbId". Starts with ones looked up by hand;
+     * the user can add more by pasting a link in the link tester. The app saves these.
+     */
+    val manual = mutableMapOf(
+        // Night Court (1984), Season 1 on Prime Video: primevideo.com/detail/0JKQMQRYLQ7AQRRSNOGZQAN1PB
+        "amazonprimevideo|tv|162" to "0JKQMQRYLQ7AQRRSNOGZQAN1PB",
+    )
+
+    private fun manualKey(title: Title, service: Provider) = "${serviceKey(service)}|${title.kind}|${title.id}"
+
+    /**
+     * Pulls a title's ID out of a link copied from a streaming service, e.g.
+     * primevideo.com/detail/0JKQ..., netflix.com/title/80117552, disneyplus.com/.../entity-....
+     * Returns null if the text doesn't look like such a link.
+     */
+    fun idFromLink(text: String): String? {
+        val t = text.trim()
+        Regex("""amzn1\.dv\.gti\.[0-9a-f-]{36}""").find(t)?.let { return it.value }
+        Regex("""/(?:gp/video/)?detail/(?:[^/?#]+/)?([A-Z0-9]{10,})""").find(t)?.let { return it.groupValues[1] }
+        Regex("""/title/(\d{5,})""").find(t)?.let { return it.groupValues[1] }
+        Regex("""entity-[0-9a-f-]{36}""").find(t)?.let { return it.value }
+        Regex("""urn:hbo:[a-z]+:[A-Za-z0-9_-]+""").find(t)?.let { return it.value }
+        Regex("""hulu\.com/(?:series|movie)/[^?#]*?([0-9a-f]{8}-[0-9a-f-]{27})""").find(t)?.let { return it.groupValues[1] }
+        return null
+    }
+
+    /** Remembers [id] as the ID of [title] on [service]. */
+    fun remember(title: Title, service: Provider, id: String) {
+        manual[manualKey(title, service)] = id
+    }
+
+    /** The raw ID we have for [title] on this service (one the user gave us first, then Wikidata's), or null. */
     private suspend fun rawId(title: Title, service: Provider): String? {
+        manual[manualKey(title, service)]?.let { return it }
         val ids = services[serviceKey(service)] ?: return null
         val props = if (title.kind == TV) ids.tv else ids.movie
         val all = lookup(title)
@@ -52,7 +85,7 @@ object Wikidata {
         val raw = rawId(title, service)
         if (raw == null) {
             notes += if (services.containsKey(serviceKey(service))) {
-                "Wikidata has no ${service.name} ID for this title."
+                "No ${service.name} ID for this title yet. Paste a link to it from ${service.name} below to add one."
             } else {
                 "No ID source for ${service.name}."
             }
@@ -69,14 +102,14 @@ object Wikidata {
         }
         // Prime: Wikidata has Amazon's store code (B0...). Prime's own page for it also names
         // the internal ID (amzn1.dv.gti....) and the ID in Prime's web links (detail/0T5B...).
-        notes += "Wikidata Prime ID: $raw"
+        notes += "Prime ID we have: $raw"
         val page = primePage(raw)
         notes += page.note
         val links = mutableListOf<DeepLink>()
         page.detailId?.let { id -> types.forEach { links += DeepLink(id, it, "Web-link ID as $it") } }
         page.gti?.let { id -> types.forEach { links += DeepLink(id, it, "Internal ID as $it") } }
-        types.forEach { links += DeepLink(raw, it, "Wikidata ID as $it") }
-        return Candidates(links, notes)
+        types.forEach { links += DeepLink(raw, it, "Saved ID as $it") }
+        return Candidates(links.distinctBy { it.contentId to it.mediaType }, notes)
     }
 
     class Candidates(val links: List<DeepLink>, val notes: List<String>)

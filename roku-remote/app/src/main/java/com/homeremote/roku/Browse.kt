@@ -58,6 +58,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import kotlinx.coroutines.launch
 
 /** One channel: open it on the TV, or browse its popular shows and movies and star favorites. */
 @Composable
@@ -424,6 +425,7 @@ fun LinkTestDialog(vm: RemoteViewModel) {
                     )
                 }
                 items(test.notes) { Text(it, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                item { PasteLinkBox(vm, test) }
                 if (test.loading) item { CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp) }
                 if (!test.loading && test.links.isEmpty()) item { Text("No IDs to try for this title.", fontSize = 14.sp) }
                 itemsIndexed(test.links) { i, link ->
@@ -439,4 +441,33 @@ fun LinkTestDialog(vm: RemoteViewModel) {
             }
         },
     )
+}
+
+/** Lets the user paste a link to the show from the streaming service, to give it an ID. */
+@Composable
+private fun PasteLinkBox(vm: RemoteViewModel, test: RemoteViewModel.LinkTest) {
+    var text by rememberSaveable(test.app.id, test.title.id) { mutableStateOf("") }
+    var message by rememberSaveable(test.app.id, test.title.id) { mutableStateOf<String?>(null) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    Column {
+        androidx.compose.material3.OutlinedTextField(
+            value = text,
+            onValueChange = { text = it },
+            label = { Text("Paste a link from ${test.app.name}", fontSize = 12.sp) },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            androidx.compose.material3.TextButton(
+                onClick = {
+                    scope.launch {
+                        message = vm.saveLink(test.app, test.title, text)
+                        if (message?.startsWith("Saved") == true) text = ""
+                    }
+                },
+                enabled = text.isNotBlank(),
+            ) { Text("Save link") }
+            message?.let { Text(it, fontSize = 12.sp, modifier = Modifier.weight(1f)) }
+        }
+    }
 }

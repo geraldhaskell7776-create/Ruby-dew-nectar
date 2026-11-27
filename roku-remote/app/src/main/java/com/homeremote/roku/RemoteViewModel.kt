@@ -88,6 +88,12 @@ class RemoteViewModel(app: Application) : AndroidViewModel(app) {
     private val commands = Channel<String>(Channel.UNLIMITED)
 
     init {
+        try {
+            val saved = JSONObject(prefs.getString("manualIds", "{}") ?: "{}")
+            saved.keys().forEach { Wikidata.manual[it] = saved.getString(it) }
+        } catch (e: Exception) {
+            // Nothing saved yet.
+        }
         val savedHost = prefs.getString("host", null)
         if (savedHost != null) {
             use(RokuDevice(savedHost, prefs.getString("name", null) ?: savedHost))
@@ -261,6 +267,25 @@ class RemoteViewModel(app: Application) : AndroidViewModel(app) {
                 linkTest = LinkTest(app, title, false, result.links, result.notes)
             }
         }
+    }
+
+    /**
+     * Saves the ID in a link the user pasted (e.g. from the Prime Video app's Share button)
+     * as this title's ID on this channel, then refreshes the tester. Returns a message to show.
+     */
+    suspend fun saveLink(app: RokuApp, title: Title, text: String): String {
+        val id = Wikidata.idFromLink(text) ?: return "That doesn't look like a link to a show. Copy the show's link from ${app.name} and paste it here."
+        val provider = try {
+            tmdb.providerFor(app.name)
+        } catch (e: Exception) {
+            null
+        } ?: return "Couldn't match ${app.name} to a streaming service."
+        Wikidata.remember(title, provider, id)
+        val all = JSONObject()
+        Wikidata.manual.forEach { (k, v) -> all.put(k, v) }
+        prefs.edit().putString("manualIds", all.toString()).apply()
+        openLinkTest(app, title)
+        return "Saved $id for ${title.name}."
     }
 
     fun closeLinkTest() {
