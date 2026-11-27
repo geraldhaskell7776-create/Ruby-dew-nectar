@@ -109,17 +109,23 @@ class RemoteViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** When the user last pressed a remote button (used to cancel the automatic profile pick). */
+    private var lastPressAt = 0L
+
     fun press(key: String) {
+        lastPressAt = System.currentTimeMillis()
         commands.trySend("/keypress/$key")
     }
 
     /** Types one character into whatever search box is open on the TV. */
     fun type(ch: Char) {
+        lastPressAt = System.currentTimeMillis()
         val encoded = URLEncoder.encode(ch.toString(), "UTF-8").replace("+", "%20")
         commands.trySend("/keypress/Lit_$encoded")
     }
 
     fun launch(app: RokuApp) {
+        lastPressAt = System.currentTimeMillis()
         commands.trySend("/launch/${app.id}")
     }
 
@@ -211,14 +217,22 @@ class RemoteViewModel(app: Application) : AndroidViewModel(app) {
             }
             if (contentId != null) {
                 val mediaType = if (title.kind == TV) "series" else "movie"
+                val startedAt = System.currentTimeMillis()
                 commands.trySend("/launch/$appId?contentId=${encode(contentId)}&mediaType=$mediaType")
                 showNotice(
-                    "Opening \"${title.name}\" on $appName. If $appName asks who's watching, pick a profile " +
-                        "with the remote and it should go to the show.",
+                    "Opening \"${title.name}\" on $appName (direct link). If it asks who's watching, " +
+                        "the app picks the highlighted profile in a few seconds.",
                 )
+                // Most channels show "Who's watching?" before going to the show. Press OK on the
+                // highlighted profile, unless the user has pressed a button themselves meanwhile.
+                delay(PROFILE_PICK_DELAY_MS)
+                if (lastPressAt < startedAt && client != null) commands.trySend("/keypress/Select")
             } else {
                 commands.trySend("/launch/$appId")
-                showNotice("Opening $appName. Find \"${title.name}\" there; the keyboard button can type it for you.")
+                showNotice(
+                    "Opening $appName (no direct link for this title). Find \"${title.name}\" there; " +
+                        "the keyboard button can type it for you.",
+                )
             }
         }
     }
@@ -355,6 +369,8 @@ class RemoteViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private companion object {
+        /** How long a channel takes to reach its "Who's watching?" screen after launching. */
+        const val PROFILE_PICK_DELAY_MS = 8000L
         const val TURNED_OFF =
             "The Roku is blocking phone control. On the Roku go to Settings > System > " +
                 "Advanced system settings > Control by mobile apps and turn it on."
